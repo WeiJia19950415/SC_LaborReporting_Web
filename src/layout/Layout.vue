@@ -25,8 +25,14 @@
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
           </template>
-          <el-menu-item index="/system/users" v-if="hasPermission('AbpIdentity.Users')">用户管理</el-menu-item>
-          <el-menu-item index="/system/roles" v-if="hasPermission('AbpIdentity.Roles')">角色管理</el-menu-item>
+            <el-menu-item index="/users" v-if="hasPermission('AbpIdentity.Users')">
+              <el-icon><User /></el-icon>
+              用户管理
+            </el-menu-item>
+            <el-menu-item index="/system/roles" v-if="hasPermission('AbpIdentity.Roles')">
+              <el-icon><UserFilled /></el-icon>
+              角色管理
+            </el-menu-item>
         </el-sub-menu>
 
         <el-menu-item index="/tenants" v-if="hasPermission('AbpTenantManagement.Tenants')">
