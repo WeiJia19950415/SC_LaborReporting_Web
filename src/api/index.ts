@@ -3,7 +3,7 @@ import request from '../utils/request';
 // 统一管理所有的 API 路径
 export const API_URLS = {
   login: '/api/account/login',
-  getPermissions: '/api/app/user-permission/my-permissions',
+  getPermissions: '/api/app/user-management/my-permissions',
   getAppConfig: '/api/abp/application-configuration',
   getUserList: '/api/identity/users' // 获取用户列表的 API 路径
 };

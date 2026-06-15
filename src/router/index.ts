@@ -9,7 +9,7 @@ const routes = [
   },
   {
     path: '/',
-    component: Layout,
+    component: Layout, // 全局唯一的布局外壳
     redirect: '/home',
     children: [
       {
@@ -23,9 +23,28 @@ const routes = [
         component: () => import('../views/Books.vue')
       },
       {
-        path: 'users',
+        path: 'users', 
         name: 'Users',
-        component: () => import('../views/users/index.vue')
+        component: () => import('../views/users/index.vue'),
+        meta: { title: '用户管理' }
+      },
+      {
+        path: 'department', // 全路径匹配 /system/department
+        name: 'Department',
+        component: () => import('../views/departments/index.vue'),
+        meta: { title: '部门管理', icon: 'Memo' } 
+      },
+      {
+        path: 'roles', // 全路径匹配 /system/department
+        name: 'Roles',
+        component: () => import('../views/roles/index.vue'),
+        meta: { title: '角色管理', icon: 'Memo' } 
+      },
+      {
+        path: 'laborCategories', // 全路径匹配 /system/department
+        name: 'LaborCategories',
+        component: () => import('../views/laborCategories/index.vue'),
+        meta: { title: '工时分类设置', icon: 'Memo' } 
       }
     ]
   }

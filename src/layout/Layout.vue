@@ -1,7 +1,7 @@
 <template>
   <el-container class="app-wrapper">
     <el-aside width="200px" class="sidebar-container">
-      <div class="logo">劳动申报系统</div>
+      <div class="logo">报工系统</div>
       <el-menu
         :default-active="activeMenu"
         class="el-menu-vertical"
@@ -29,16 +29,31 @@
               <el-icon><User /></el-icon>
               用户管理
             </el-menu-item>
-            <el-menu-item index="/system/roles" v-if="hasPermission('AbpIdentity.Roles')">
+            
+            <el-menu-item index="/department" v-if="hasPermission('AbpIdentity.Users')">
+              <el-icon><User /></el-icon>
+              部门管理
+            </el-menu-item>
+            
+            <el-menu-item index="/roles" v-if="hasPermission('AbpIdentity.Roles')">
               <el-icon><UserFilled /></el-icon>
               角色管理
             </el-menu-item>
         </el-sub-menu>
 
-        <el-menu-item index="/tenants" v-if="hasPermission('AbpTenantManagement.Tenants')">
-          <el-icon><OfficeBuilding /></el-icon>
-          <span>租户管理</span>
-        </el-menu-item>
+        <el-sub-menu index="system2" v-if="hasPermission('AbpIdentity.Users') || hasPermission('AbpIdentity.Roles')">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>基础数据管理</span>
+          </template>
+            <el-menu-item index="/laborCategories" v-if="hasPermission('AbpIdentity.Users')">
+              <el-icon><el-icon-collection-tag /></el-icon>
+              工时分类设置
+            </el-menu-item>
+
+        </el-sub-menu>
+
+
         
         <el-menu-item @click="logout" index="">
           <el-icon><SwitchButton /></el-icon>
@@ -49,7 +64,7 @@
 
     <el-container class="main-container">
       <el-header class="app-header">
-        <div class="header-breadcrumb">欢迎使用 SC_LaborReporting 系统</div>
+        <div class="header-breadcrumb">欢迎使用 思创激光报工 系统</div>
       </el-header>
       
       <el-main class="app-main">
