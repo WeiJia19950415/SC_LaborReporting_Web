@@ -53,78 +53,74 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { getLaborReports } from '../../api/laborReport' 
-import { useUserStore } from '../../stores/user'       
+import { getCalendarStatus } from '../../api/laborReport' // 🌟 引入新接口
+import { ElMessage } from 'element-plus'
 
 const locale = zhCn
 const loading = ref(false)
 const currentDate = ref(new Date())
 
-interface DayStatusSnapshot {
-  approved: string[]
-  pending: string[]
-  rejectedOrWithdrawn: string[]
-  totalHours: number
-}
-const dailyStatusMap = ref<Record<string, DayStatusSnapshot>>({})
+// 本地存放后端处理好的数据
+const dailyStatusMap = ref<Record<string, any>>({})
 
 onMounted(() => {
   fetchCalendarData()
 })
 
-const fetchCalendarData = async () => {
-    
-  const userStore = useUserStore()
-  const currentUserId = userStore.userInfo?.id || userStore.id 
-  if (!currentUserId) {
-    console.error('未获取到当前登录用户信息')
-    return
+// 🌟 核心算法：获取当前日历面板中“能看到的”最小日期和最大日期
+const getCalendarDateRange = (date: Date) => {
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  
+  // 获取当月第一天，并前推 15 天（覆盖上个月在日历第一行露出的灰色天数）
+  const firstDay = new Date(year, month, 1)
+  const startDate = new Date(firstDay.getTime() - 15 * 24 * 60 * 60 * 1000)
+  
+  // 获取当月最后一天，并往后推 15 天（覆盖下个月在日历最后一行露出的灰色天数）
+  const lastDay = new Date(year, month + 1, 0)
+  const endDate = new Date(lastDay.getTime() + 15 * 24 * 60 * 60 * 1000)
+
+  const format = (d: Date) => {
+    const m = (d.getMonth() + 1).toString().padStart(2, '0')
+    const day = d.getDate().toString().padStart(2, '0')
+    return `${d.getFullYear()}-${m}-${day}`
   }
 
+  return { startDate: format(startDate), endDate: format(endDate) }
+}
+
+const fetchCalendarData = async () => {
+  const { startDate, endDate } = getCalendarDateRange(currentDate.value)
+  
   try {
     loading.value = true
-    const res = await getLaborReports({ reporterId: currentUserId })
-    processReportData(res || [])
+    // 🌟 请求后端，只需传日期区间，后端会自动根据当前请求头解析登录人
+    const res: any = await getCalendarStatus(startDate, endDate)
+    
+    // 直接将后端返回的结果转化为键值对形式，方便页面极速渲染
+    const map: Record<string, any> = {}
+    if (res && Array.isArray(res)) {
+      res.forEach(item => {
+        map[item.date] = {
+          approved: item.approvedDetailIds || [],
+          pending: item.pendingDetailIds || [],
+          rejectedOrWithdrawn: item.rejectedOrWithdrawnDetailIds || [],
+          totalHours: item.totalEffectiveHours || 0
+        }
+      })
+    }
+    dailyStatusMap.value = map
   } catch (error) {
-    console.error('加载工时标记失败:', error)
+    console.error('加载日历数据失败:', error)
+    ElMessage.error('加载工时数据失败')
   } finally {
     loading.value = false
   }
 }
 
-const processReportData = (items: any[]) => {
-  const map: Record<string, DayStatusSnapshot> = {}
-
-  items.forEach(item => {
-    const dateStr = item.reportDate ? item.reportDate.split('T')[0] : ''
-    if (!dateStr) return
-
-    if (!map[dateStr]) {
-      map[dateStr] = {
-        approved: [],
-        pending: [],
-        rejectedOrWithdrawn: [],
-        totalHours: 0
-      }
-    }
-
-    if (item.status === 3) {
-      map[dateStr].approved.push(item.detailId)
-      map[dateStr].totalHours += item.hours 
-    } else if (item.status === 0) {
-      map[dateStr].pending.push(item.detailId)
-    } else if (item.status === 1 || item.status === 2) {
-      map[dateStr].rejectedOrWithdrawn.push(item.detailId)
-    }
-  })
-
-  dailyStatusMap.value = map
-}
-
-// 决定每一格颜色的 Class
+// 判定格子颜色（优先级：退回/撤回 > 审批中 > 已报工 > 未报工）
 const getDayDisplayStatus = (dateStr: string) => {
   const dayData = dailyStatusMap.value[dateStr]
-
   if (!dayData || (dayData.approved.length === 0 && dayData.pending.length === 0 && dayData.rejectedOrWithdrawn.length === 0)) {
     return 'status-no-report' 
   }
@@ -140,23 +136,18 @@ const getDayDisplayStatus = (dateStr: string) => {
   return 'status-no-report'
 }
 
-// 【核心新增逻辑】：根据优先级获取对应的中文状态文本
+// 判定文字状态
 const getDayStatusText = (dateStr: string) => {
   const dayData = dailyStatusMap.value[dateStr]
-
-  // 1. 无记录 -> 未报工
   if (!dayData || (dayData.approved.length === 0 && dayData.pending.length === 0 && dayData.rejectedOrWithdrawn.length === 0)) {
     return '未报工'
   }
-  // 2. 有退回或撤回明细 -> 优先级最高，提示需要处理
   if (dayData.rejectedOrWithdrawn.length > 0) {
     return '退回/撤回'
   }
-  // 3. 有正在审批中的明细
   if (dayData.pending.length > 0) {
     return '审批中'
   }
-  // 4. 全部审批通过
   if (dayData.approved.length > 0) {
     return '已报工'
   }
@@ -177,9 +168,13 @@ const isFutureDate = (cellDate: Date) => {
 
 const handleDateClick = (data: any) => {
   if (isFutureDate(data.date)) return 
-  console.log('用户点击了日期:', data.day, '当前状态:', getDayStatusText(data.day))
+  
+  const dayData = dailyStatusMap.value[data.day]
+  console.log(`用户点击了 ${data.day}。当天数据：`, dayData || '暂无数据')
+  // TODO: 后续在这里打开填报抽屉，并将 dayData 中的各种 IDs 传过去
 }
 
+// 🌟 监听日历年月变化：每次切换“上个月/下个月/今天”时，重新计算边界并拉取数据
 watch(currentDate, (newDate, oldDate) => {
   if (!oldDate || newDate.getFullYear() !== oldDate.getFullYear() || newDate.getMonth() !== oldDate.getMonth()) {
     fetchCalendarData()
@@ -191,18 +186,15 @@ watch(currentDate, (newDate, oldDate) => {
 .app-container {
   padding: 20px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title {
   font-weight: bold;
   font-size: 16px;
 }
-
 .calendar-top-legend {
   display: flex;
   justify-content: flex-end; 
@@ -210,19 +202,15 @@ watch(currentDate, (newDate, oldDate) => {
   margin-bottom: 12px;       
   padding-right: 4px;        
 }
-
 .legend-item {
   font-weight: 500;
   cursor: default;           
 }
-
 .custom-withdrawn {
   background-color: #fff5f5;
   border-color: #fee2e2;
   color: #f87171;
 }
-
-/* ================= 日历方格基础配置 ================= */
 .calendar-cell {
   height: 100%;
   display: flex;
@@ -230,11 +218,9 @@ watch(currentDate, (newDate, oldDate) => {
   align-items: center; 
   box-sizing: border-box;
   cursor: pointer;
-  /* 稍微增加底部 padding，让文字显示得更舒服 */
   padding: 8px 4px 6px 4px; 
   transition: all 0.25s ease;
 }
-
 .date-text {
   font-size: 16px; 
   font-weight: 600; 
@@ -243,80 +229,62 @@ watch(currentDate, (newDate, oldDate) => {
   align-items: center; 
   justify-content: center; 
 }
-
-/* 状态容器，利用 Flex 贴底对齐 */
 .status-area {
-  min-height: 38px; /* 调高高度，以容纳时长和文字两行内容 */
+  min-height: 38px; 
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
   gap: 2px;
 }
-
-/* 工时时长样式 */
 .hours-text {
   font-size: 13px;
   font-weight: bold;
   opacity: 0.9;
 }
-
-/* 【本次新增】：底部状态文字的专属样式 */
 .status-text {
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.5px; /* 增加一点字间距，提升中文辨识度 */
-  opacity: 0.85;         /* 微调透明度，使数字日期仍是视觉主焦点 */
+  letter-spacing: 0.5px; 
+  opacity: 0.85;         
   line-height: 1.2;
 }
-
 :deep(.el-calendar-table .el-calendar-day) {
   padding: 0px; 
   height: 100px; 
 }
-
 .is-today {
   color: var(--el-color-primary);
   text-decoration: underline;
 }
 
-/* ================= 状态颜色映射 (文字会自动继承这里的 color) ================= */
-
-/* 1. 未报工 (红底红字) */
+/* 优先级1：未报工 */
 .status-no-report {
   background-color: #fee2e2 !important;
   color: #dc2626;
 }
-.status-no-report:hover {
-  background-color: #fca5a5 !important;
-}
+.status-no-report:hover { background-color: #fca5a5 !important; }
 
-/* 2. 退回、撤回 (极淡的粉红底，浅红字) */
+/* 优先级2：退回、撤回 */
 .status-rejected-withdrawn {
   background-color: #fff5f5 !important;
   color: #f87171;
 }
-.status-rejected-withdrawn:hover {
-  background-color: #fee2e2 !important;
-}
+.status-rejected-withdrawn:hover { background-color: #fee2e2 !important; }
 
-/* 3. 审批中 (浅黄底，暖橙字) */
+/* 优先级3：审批中 */
 .status-pending {
   background-color: #fdf6ec !important;
   color: #e6a23c;
 }
-.status-pending:hover {
-  background-color: #f5dab1 !important;
-}
+.status-pending:hover { background-color: #f5dab1 !important; }
 
-/* 4. 已报工 (浅绿底，绿字) */
+/* 优先级4：已报工 */
 .status-approved {
   background-color: #f0f9eb !important;
   color: #67c23a;
 }
-.status-approved:hover {
-  background-color: #c2e7b0 !important;
-}
+.status-approved:hover { background-color: #c2e7b0 !important; }
 
 /* 禁用状态（未来日期） */
 .is-disabled {
@@ -324,10 +292,6 @@ watch(currentDate, (newDate, oldDate) => {
   background-color: #f5f7fa !important;    
   color: #c0c4cc !important;               
 }
-.is-disabled:hover {
-  background-color: #f5f7fa !important;
-}
-.is-disabled .date-text.is-today {
-  color: #c0c4cc; 
-}
+.is-disabled:hover { background-color: #f5f7fa !important; }
+.is-disabled .date-text.is-today { color: #c0c4cc; }
 </style>

@@ -48,7 +48,10 @@
               <el-icon><Star /></el-icon>
               项目管理
             </el-menu-item>
-
+            <el-menu-item index="/projectRoles" v-if="hasPermission('AbpIdentity.Users')">
+              <el-icon><Star /></el-icon>
+              项目角色
+            </el-menu-item>
         </el-sub-menu>
 
         <el-menu-item index="/laborReport">

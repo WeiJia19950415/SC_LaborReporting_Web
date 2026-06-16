@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Layout from '../layout/Layout.vue'; 
+import { useUserStore } from '../stores/user'; 
 
 const routes = [
   {
@@ -9,7 +10,7 @@ const routes = [
   },
   {
     path: '/',
-    component: Layout, // 全局唯一的布局外壳
+    component: Layout,
     redirect: '/home',
     children: [
       {
@@ -29,34 +30,40 @@ const routes = [
         meta: { title: '用户管理' }
       },
       {
-        path: 'department', // 全路径匹配 /system/department
+        path: 'department', 
         name: 'Department',
         component: () => import('../views/departments/index.vue'),
         meta: { title: '部门管理', icon: 'Memo' } 
       },
       {
-        path: 'roles', // 全路径匹配 /system/department
+        path: 'roles', 
         name: 'Roles',
         component: () => import('../views/roles/index.vue'),
         meta: { title: '角色管理', icon: 'Memo' } 
       },
       {
-        path: 'laborCategories', // 全路径匹配 /system/department
+        path: 'laborCategories', 
         name: 'LaborCategories',
         component: () => import('../views/laborCategories/index.vue'),
         meta: { title: '工时分类设置', icon: 'Memo' } 
       },
       {
-        path: 'projects', // 全路径匹配 /system/department
+        path: 'projects', 
         name: 'Projects',
         component: () => import('../views/projects/index.vue'),
         meta: { title: '项目管理', icon: 'Memo' } 
       },
       {
-        path: 'laborReport', // 全路径匹配 /system/department
+        path: 'laborReport', 
         name: 'LaborReport',
         component: () => import('../views/laborReport/index.vue'),
         meta: { title: '工时填报', icon: 'Memo' } 
+      },
+      {
+        path: 'projectRole', 
+        name: 'ProjectRole',
+        component: () => import('../views/projectRoles/index.vue'),
+        meta: { title: '项目角色管理', icon: 'Memo' } 
       }
     ]
   }
@@ -67,13 +74,29 @@ const router = createRouter({
   routes
 });
 
-// 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const isLogin = localStorage.getItem('is_login');
   if (to.name !== 'Login' && !isLogin) {
     next({ name: 'Login' });
   } else {
-    next();
+    if (isLogin && to.name !== 'Login') {
+      const userStore = useUserStore();
+      
+      if (!userStore.id) {
+        try {
+          await userStore.fetchApplicationConfiguration();
+          next({ ...to, replace: true });
+        } catch (error) {
+          console.error('刷新时获取用户信息失败，可能 Token 已过期');
+          userStore.logout();
+          next({ name: 'Login' });
+        }
+      } else {
+        next();
+      }
+    } else {
+      next();
+    }
   }
 });
 

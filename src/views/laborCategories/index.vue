@@ -42,16 +42,15 @@
 
         <el-table-column prop="code" label="排序号" width="130" />
 
-
-        
         <el-table-column label="适用部门(全称)" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.departmentFullNames?.join('，') || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="适用角色" min-width="150" show-overflow-tooltip>
+        
+        <el-table-column label="适用项目角色" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.roleNames?.join('，') || '-' }}
+            {{ getProjectRoleNames(row.projectRoleIds) }}
           </template>
         </el-table-column>
 
@@ -68,7 +67,7 @@
     </el-card>
 
     <el-dialog :title="dialogTitle" v-model="dialogVisible" width="600px" @close="closeDialog">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
         
         <el-form-item label="上级分类" prop="parentId">
           <el-tree-select
@@ -117,9 +116,14 @@
           />
         </el-form-item>
 
-        <el-form-item label="适用角色" prop="roleNames">
-          <el-select v-model="form.roleNames" multiple collapse-tags collapse-tags-tooltip placeholder="请选择适用角色 (可多选)" style="width: 100%;" clearable>
-            <el-option v-for="role in roleOptions" :key="role.name" :label="role.name" :value="role.name" />
+        <el-form-item label="适用项目角色" prop="projectRoleIds">
+          <el-select v-model="form.projectRoleIds" multiple clearable placeholder="请选择适用项目角色" style="width: 100%">
+            <el-option
+              v-for="role in projectRoleList"
+              :key="role.id"
+              :label="role.name"
+              :value="role.id"
+            />
           </el-select>
         </el-form-item>
 
@@ -141,7 +145,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
 import { getLaborCategoryList, createLaborCategory, updateLaborCategory, deleteLaborCategory } from '../../api/laborCategory';
 import { getDepartmentList } from '../../api/department'; 
-import { getRoleList } from '../../api/role'; 
+import { getProjectRoles } from '../../api/projectRole';
 
 const treeData = ref<any[]>([]);
 const maxDepth = ref(1);
@@ -153,9 +157,10 @@ const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
 
 const deptOptions = ref<any[]>([]);
-const roleOptions = ref<any[]>([]);
-const categoryOptions = ref<any[]>([]); // 供选择的上级分类树
+const projectRoleList = ref<any[]>([]); // 替换旧的 roleOptions
+const categoryOptions = ref<any[]>([]); 
 
+// 修改表单结构，加入 projectRoleIds
 const form = reactive({
   id: '',
   parentId: null as string | null,
@@ -163,7 +168,7 @@ const form = reactive({
   laborType: 1,
   laborClass: 1,
   departmentIds: [] as string[],
-  roleNames: [] as string[],
+  projectRoleIds: [] as string[], 
   remark: ''
 });
 
@@ -173,7 +178,7 @@ const rules = reactive({
   laborClass: [{ required: true, message: '请选择工时类别', trigger: 'change' }]
 });
 
-// 构建表格显示的树，并计算深度
+// 构建树并计算深度
 const buildTreeAndCalculateDepth = (list: any[]) => {
   const map: Record<string, any> = {};
   const tree: any[] = [];
@@ -192,137 +197,3 @@ const buildTreeAndCalculateDepth = (list: any[]) => {
       tree.push(node);
     }
   });
-
-  maxDepth.value = currentMaxDepth;
-  return tree;
-};
-
-// ⭐ 防套娃死循环机制：在修改时禁用自己以及自己的下级，防止选错上级导致树形结构崩溃
-const getSafeParentOptions = (tree: any[], currentEditId: string | null) => {
-  const cloneTree = JSON.parse(JSON.stringify(tree)); // 深拷贝防止污染表格数据
-  
-  const disableNodes = (nodes: any[], shouldDisable: boolean) => {
-    nodes.forEach(node => {
-      // 如果当前节点是被编辑的节点，或者它的父节点已经被禁用了，则禁用它
-      const disableSelf = shouldDisable || node.id === currentEditId;
-      node.disabled = disableSelf;
-      if (node.children) {
-        disableNodes(node.children, disableSelf); // 向下递归传递禁用状态
-      }
-    });
-  };
-  
-  disableNodes(cloneTree, false);
-  return cloneTree;
-};
-
-const translateListToTree = (list: any[]) => {
-  const map: Record<string, any> = {};
-  const tree: any[] = [];
-  list.forEach(item => { map[item.id] = { ...item, children: [] }; });
-  list.forEach(item => {
-    const obj = map[item.id];
-    if (item.parentId && map[item.parentId]) {
-      map[item.parentId].children.push(obj);
-    } else {
-      tree.push(obj);
-    }
-  });
-  return tree;
-};
-
-const initDictData = async () => {
-  try {
-    const [deptRes, roleRes] = await Promise.all([
-      getDepartmentList(),
-      getRoleList({ SkipCount: 0, MaxResultCount: 1000 })
-    ]);
-    deptOptions.value = translateListToTree(deptRes.items || deptRes);
-    roleOptions.value = roleRes.items || roleRes;
-  } catch (error) {
-    console.error('获取字典数据失败', error);
-  }
-};
-
-const fetchData = async () => {
-  loading.value = true;
-  try {
-    const res = await getLaborCategoryList();
-    treeData.value = buildTreeAndCalculateDepth(res.items || res);
-  } catch (error) {
-    ElMessage.error('加载数据失败');
-  } finally {
-    loading.value = false;
-  }
-};
-
-const openDialog = (type: 'addRoot' | 'addChild' | 'edit', row?: any) => {
-  dialogVisible.value = true;
-  
-  // 每次打开弹窗时，重新生成可选的上级分类菜单
-  categoryOptions.value = getSafeParentOptions(treeData.value, type === 'edit' ? row.id : null);
-
-  if (type === 'addRoot') {
-    dialogTitle.value = '新增顶级分类';
-    Object.assign(form, { id: '', parentId: null, name: '', laborType: 1, laborClass: 1, departmentIds: [], roleNames: [], remark: '' });
-  } else if (type === 'addChild') {
-    dialogTitle.value = `在【${row.name}】下新增`;
-    Object.assign(form, { id: '', parentId: row.id, name: '', laborType: 1, laborClass: 1, departmentIds: [], roleNames: [], remark: '' });
-  } else if (type === 'edit') {
-    dialogTitle.value = '修改分类';
-    Object.assign(form, {
-      ...row,
-      departmentIds: row.departmentIds || [],
-      roleNames: row.roleNames || []
-    });
-  }
-};
-
-const submitForm = async () => {
-  if (!formRef.value) return;
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitLoading.value = true;
-      try {
-        const payload = { ...form }; 
-        if (payload.id) {
-          await updateLaborCategory(payload.id, payload);
-          ElMessage.success('修改成功');
-        } else {
-          await createLaborCategory(payload);
-          ElMessage.success('新增成功');
-        }
-        dialogVisible.value = false;
-        fetchData();
-      } finally {
-        submitLoading.value = false;
-      }
-    }
-  });
-};
-
-const handleDelete = (row: any) => {
-  if (row.children && row.children.length > 0) {
-    ElMessage.warning('该分类下存在子分类，无法直接删除');
-    return;
-  }
-  ElMessageBox.confirm(`确定要删除【${row.name}】吗？`, '警告', { type: 'warning' }).then(async () => {
-    await deleteLaborCategory(row.id);
-    ElMessage.success('删除成功');
-    fetchData();
-  }).catch(() => {});
-};
-
-const closeDialog = () => formRef.value?.resetFields();
-
-onMounted(() => {
-  initDictData(); 
-  fetchData();
-});
-</script>
-
-<style scoped>
-.app-container {
-  padding: 20px;
-}
-</style>

@@ -74,3 +74,11 @@ export function withdrawLaborReportDetail(reportId: string, detailId: string) {
     params: { reportId, detailId }
   })
 }
+
+export function getCalendarStatus(startDate: string, endDate: string) {
+  return request({
+    url: '/api/app/labor-report/calendar-status',
+    method: 'get',
+    params: { startDate, endDate } 
+  })
+}
