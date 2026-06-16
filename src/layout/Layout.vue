@@ -14,12 +14,6 @@
           <el-icon><House /></el-icon>
           <span>首页大盘</span>
         </el-menu-item>
-
-        <el-menu-item index="/books" v-if="hasPermission('SC_LaborReporting.Books')">
-          <el-icon><Reading /></el-icon>
-          <span>书籍管理</span>
-        </el-menu-item>
-
         <el-sub-menu index="system" v-if="hasPermission('AbpIdentity.Users') || hasPermission('AbpIdentity.Roles')">
           <template #title>
             <el-icon><Setting /></el-icon>
@@ -47,13 +41,20 @@
             <span>基础数据管理</span>
           </template>
             <el-menu-item index="/laborCategories" v-if="hasPermission('AbpIdentity.Users')">
-              <el-icon><el-icon-collection-tag /></el-icon>
+              <el-icon><Message /></el-icon>
               工时分类设置
+            </el-menu-item>
+            <el-menu-item index="/projects" v-if="hasPermission('AbpIdentity.Users')">
+              <el-icon><Star /></el-icon>
+              项目管理
             </el-menu-item>
 
         </el-sub-menu>
 
-
+        <el-menu-item index="/laborReport">
+          <el-icon><House /></el-icon>
+          <span>工时填报</span>
+        </el-menu-item>
         
         <el-menu-item @click="logout" index="">
           <el-icon><SwitchButton /></el-icon>

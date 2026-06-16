@@ -45,6 +45,18 @@ const routes = [
         name: 'LaborCategories',
         component: () => import('../views/laborCategories/index.vue'),
         meta: { title: '工时分类设置', icon: 'Memo' } 
+      },
+      {
+        path: 'projects', // 全路径匹配 /system/department
+        name: 'Projects',
+        component: () => import('../views/projects/index.vue'),
+        meta: { title: '项目管理', icon: 'Memo' } 
+      },
+      {
+        path: 'laborReport', // 全路径匹配 /system/department
+        name: 'LaborReport',
+        component: () => import('../views/laborReport/index.vue'),
+        meta: { title: '工时填报', icon: 'Memo' } 
       }
     ]
   }
