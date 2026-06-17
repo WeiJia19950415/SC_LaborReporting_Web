@@ -60,8 +60,8 @@ const routes = [
         meta: { title: '工时填报', icon: 'Memo' } 
       },
       {
-        path: 'projectRole', 
-        name: 'ProjectRole',
+        path: 'projectRoles', 
+        name: 'ProjectRoles',
         component: () => import('../views/projectRoles/index.vue'),
         meta: { title: '项目角色管理', icon: 'Memo' } 
       }
@@ -81,7 +81,6 @@ router.beforeEach(async (to, from, next) => {
   } else {
     if (isLogin && to.name !== 'Login') {
       const userStore = useUserStore();
-      
       if (!userStore.id) {
         try {
           await userStore.fetchApplicationConfiguration();

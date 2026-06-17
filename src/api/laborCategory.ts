@@ -12,3 +12,11 @@ export function updateLaborCategory(id: string, data: any) {
 export function deleteLaborCategory(id: string) {
   return request({ url: `/api/app/labor-category/${id}`, method: 'delete' });
 }
+
+export function getLeafCategories(params: { projectRoleId?: string, departmentId?: string, laborClass: number }) {
+  return request({
+    url: '/api/app/labor-category/leaf-categories',
+    method: 'get',
+    params
+  })
+}

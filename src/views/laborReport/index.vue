@@ -34,7 +34,7 @@
               <div class="status-area">
                 <template v-if="!isFutureDate(data.date)">
                   <span class="hours-text" v-if="getDayHoursText(data.day)">
-                    {{ getDayHoursText(data.day) }}
+                    {{ getDayHoursText(data.day)}}
                   </span>
                   
                   <span class="status-text">
@@ -48,14 +48,17 @@
       </el-config-provider>
     </el-card>
   </div>
+  <Detail ref="detailRef" @refresh="fetchCalendarData" />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { getCalendarStatus } from '../../api/laborReport' // 🌟 引入新接口
+import { getCalendarStatus } from '../../api/laborReport'
 import { ElMessage } from 'element-plus'
+import Detail from './detail.vue'
 
+const detailRef = ref()
 const locale = zhCn
 const loading = ref(false)
 const currentDate = ref(new Date())
@@ -67,19 +70,14 @@ onMounted(() => {
   fetchCalendarData()
 })
 
-// 🌟 核心算法：获取当前日历面板中“能看到的”最小日期和最大日期
+// 获取当前日历面板中“能看到的”最小日期和最大日期
 const getCalendarDateRange = (date: Date) => {
   const year = date.getFullYear()
   const month = date.getMonth()
-  
-  // 获取当月第一天，并前推 15 天（覆盖上个月在日历第一行露出的灰色天数）
   const firstDay = new Date(year, month, 1)
   const startDate = new Date(firstDay.getTime() - 15 * 24 * 60 * 60 * 1000)
-  
-  // 获取当月最后一天，并往后推 15 天（覆盖下个月在日历最后一行露出的灰色天数）
   const lastDay = new Date(year, month + 1, 0)
   const endDate = new Date(lastDay.getTime() + 15 * 24 * 60 * 60 * 1000)
-
   const format = (d: Date) => {
     const m = (d.getMonth() + 1).toString().padStart(2, '0')
     const day = d.getDate().toString().padStart(2, '0')
@@ -94,10 +92,10 @@ const fetchCalendarData = async () => {
   
   try {
     loading.value = true
-    // 🌟 请求后端，只需传日期区间，后端会自动根据当前请求头解析登录人
+    //请求后端，只需传日期区间，后端会自动根据当前请求头解析登录人
     const res: any = await getCalendarStatus(startDate, endDate)
     
-    // 直接将后端返回的结果转化为键值对形式，方便页面极速渲染
+    //直接将后端返回的结果转化为键值对形式
     const map: Record<string, any> = {}
     if (res && Array.isArray(res)) {
       res.forEach(item => {
@@ -118,7 +116,20 @@ const fetchCalendarData = async () => {
   }
 }
 
-// 判定格子颜色（优先级：退回/撤回 > 审批中 > 已报工 > 未报工）
+const handleDateClick = (data: any) => {
+  if (isFutureDate(data.date)) return;
+  
+  const dateStr = data.day;
+  const dayData = dailyStatusMap.value[dateStr];
+  const approved = dayData?.approved || [];
+  const pending = dayData?.pending || [];
+  const rejectedOrWithdrawn = dayData?.rejectedOrWithdrawn || [];
+  const arr = [...approved, ...pending, ...rejectedOrWithdrawn];
+  const isEdit = arr.length > 0;
+  detailRef.value.open(dateStr, isEdit, arr);
+};
+
+// 判定格子颜色
 const getDayDisplayStatus = (dateStr: string) => {
   const dayData = dailyStatusMap.value[dateStr]
   if (!dayData || (dayData.approved.length === 0 && dayData.pending.length === 0 && dayData.rejectedOrWithdrawn.length === 0)) {
@@ -156,7 +167,7 @@ const getDayStatusText = (dateStr: string) => {
 
 const getDayHoursText = (dateStr: string) => {
   const dayData = dailyStatusMap.value[dateStr]
-  return dayData && dayData.totalHours > 0 ? `${dayData.totalHours}h` : ''
+  return dayData && dayData.totalHours > 0 ? `生效工时：${dayData.totalHours}h` : ''
 }
 
 const isFutureDate = (cellDate: Date) => {
@@ -166,15 +177,6 @@ const isFutureDate = (cellDate: Date) => {
   return cellDate.getTime() > targetDate.getTime()
 }
 
-const handleDateClick = (data: any) => {
-  if (isFutureDate(data.date)) return 
-  
-  const dayData = dailyStatusMap.value[data.day]
-  console.log(`用户点击了 ${data.day}。当天数据：`, dayData || '暂无数据')
-  // TODO: 后续在这里打开填报抽屉，并将 dayData 中的各种 IDs 传过去
-}
-
-// 🌟 监听日历年月变化：每次切换“上个月/下个月/今天”时，重新计算边界并拉取数据
 watch(currentDate, (newDate, oldDate) => {
   if (!oldDate || newDate.getFullYear() !== oldDate.getFullYear() || newDate.getMonth() !== oldDate.getMonth()) {
     fetchCalendarData()

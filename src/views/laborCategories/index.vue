@@ -197,3 +197,144 @@ const buildTreeAndCalculateDepth = (list: any[]) => {
       tree.push(node);
     }
   });
+
+  maxDepth.value = currentMaxDepth;
+  return tree;
+};
+
+// 安全的上级树构建 (防止死循环)
+const getSafeParentOptions = (tree: any[], currentEditId: string | null) => {
+  const cloneTree = JSON.parse(JSON.stringify(tree)); 
+  
+  const disableNodes = (nodes: any[], shouldDisable: boolean) => {
+    nodes.forEach(node => {
+      const disableSelf = shouldDisable || node.id === currentEditId;
+      node.disabled = disableSelf;
+      if (node.children) {
+        disableNodes(node.children, disableSelf);
+      }
+    });
+  };
+  
+  disableNodes(cloneTree, false);
+  return cloneTree;
+};
+
+const translateListToTree = (list: any[]) => {
+  const map: Record<string, any> = {};
+  const tree: any[] = [];
+  list.forEach(item => { map[item.id] = { ...item, children: [] }; });
+  list.forEach(item => {
+    const obj = map[item.id];
+    if (item.parentId && map[item.parentId]) {
+      map[item.parentId].children.push(obj);
+    } else {
+      tree.push(obj);
+    }
+  });
+  return tree;
+};
+
+// 获取部门与项目角色字典数据
+const initDictData = async () => {
+  try {
+    const [deptRes, roleRes] = await Promise.all([
+      getDepartmentList(),
+      getProjectRoles({ skipCount: 0, maxResultCount: 1000 })
+    ]);
+    deptOptions.value = translateListToTree(deptRes.items || deptRes);
+    projectRoleList.value = roleRes.items || roleRes;
+  } catch (error) {
+    console.error('获取字典数据失败', error);
+  }
+};
+
+// 根据 ID 数组在表格中渲染项目角色名称
+const getProjectRoleNames = (ids: string[]) => {
+  if (!ids || ids.length === 0) return '-';
+  return ids.map(id => {
+    const role = projectRoleList.value.find(r => r.id === id);
+    return role ? role.name : id; // 找不到名字就显示 ID 兜底
+  }).join('，');
+};
+
+const fetchData = async () => {
+  loading.value = true;
+  try {
+    const res = await getLaborCategoryList();
+    treeData.value = buildTreeAndCalculateDepth(res.items || res);
+  } catch (error) {
+    ElMessage.error('加载数据失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const openDialog = (type: 'addRoot' | 'addChild' | 'edit', row?: any) => {
+  dialogVisible.value = true;
+  categoryOptions.value = getSafeParentOptions(treeData.value, type === 'edit' ? row.id : null);
+
+  if (type === 'addRoot') {
+    dialogTitle.value = '新增顶级分类';
+    Object.assign(form, { id: '', parentId: null, name: '', laborType: 1, laborClass: 1, departmentIds: [], projectRoleIds: [], remark: '' });
+  } else if (type === 'addChild') {
+    dialogTitle.value = `在【${row.name}】下新增`;
+    Object.assign(form, { id: '', parentId: row.id, name: '', laborType: 1, laborClass: 1, departmentIds: [], projectRoleIds: [], remark: '' });
+  } else if (type === 'edit') {
+    dialogTitle.value = '修改分类';
+    Object.assign(form, {
+      ...row,
+      departmentIds: row.departmentIds || [],
+      projectRoleIds: row.projectRoleIds || [] // 回显绑定的项目角色
+    });
+  }
+};
+
+const submitForm = async () => {
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      submitLoading.value = true;
+      try {
+        const payload = { ...form }; 
+        if (payload.id) {
+          await updateLaborCategory(payload.id, payload);
+          ElMessage.success('修改成功');
+        } else {
+          await createLaborCategory(payload);
+          ElMessage.success('新增成功');
+        }
+        dialogVisible.value = false;
+        fetchData();
+      } finally {
+        submitLoading.value = false;
+      }
+    }
+  });
+};
+
+const handleDelete = (row: any) => {
+  if (row.children && row.children.length > 0) {
+    ElMessage.warning('该分类下存在子分类，无法直接删除');
+    return;
+  }
+  ElMessageBox.confirm(`确定要删除【${row.name}】吗？`, '警告', { type: 'warning' }).then(async () => {
+    await deleteLaborCategory(row.id);
+    ElMessage.success('删除成功');
+    fetchData();
+  }).catch(() => {});
+};
+
+const closeDialog = () => formRef.value?.resetFields();
+
+onMounted(async () => {
+  await initDictData(); // 必须先加载字典，否则表格渲染不出角色名称
+  fetchData();
+});
+</script>
+
+<style scoped>
+.app-container {
+  padding: 20px;
+}
+</style>

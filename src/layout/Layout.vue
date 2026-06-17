@@ -12,7 +12,7 @@
       >
         <el-menu-item index="/">
           <el-icon><House /></el-icon>
-          <span>首页大盘</span>
+          <span>首页</span>
         </el-menu-item>
         <el-sub-menu index="system" v-if="hasPermission('AbpIdentity.Users') || hasPermission('AbpIdentity.Roles')">
           <template #title>
@@ -127,22 +127,18 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 让最外层包裹器铺满全屏 */
+
 .app-wrapper {
   height: 100vh;
   width: 100vw;
   display: flex;
 }
-
-/* 侧边栏样式 */
 .sidebar-container {
   background-color: #304156;
   height: 100%;
   display: flex;
   flex-direction: column;
 }
-
-/* 侧边栏 Logo */
 .logo {
   height: 60px;
   line-height: 60px;
@@ -153,21 +149,15 @@ onMounted(() => {
   background-color: #2b3643;
   flex-shrink: 0;
 }
-
-/* 去除菜单自带的右侧边框 */
 .el-menu-vertical {
   border-right: none;
   flex-grow: 1;
 }
-
-/* 右侧内容区容器 */
 .main-container {
   display: flex;
   flex-direction: column;
   flex: 1;
 }
-
-/* 右侧顶部导航条 */
 .app-header {
   height: 60px;
   background-color: #fff;
@@ -177,23 +167,19 @@ onMounted(() => {
   padding: 0 20px;
   z-index: 10;
 }
-
-/* 右侧页面主体 */
 .app-main {
   background-color: #f0f2f5;
   padding: 20px;
   flex: 1;
   overflow-y: auto;
 }
-
-/* ⭐ 新增：页脚样式 */
 .app-footer {
   height: 40px;
   line-height: 40px;
   text-align: center;
   font-size: 13px;
-  color: #909399; /* 柔和的灰色 */
-  background-color: #f0f2f5; /* 与主体背景色保持一致，或者改为 #fff */
+  color: #909399; 
+  background-color: #f0f2f5; 
   letter-spacing: 1px;
 }
 </style>
