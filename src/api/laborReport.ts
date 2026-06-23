@@ -119,3 +119,48 @@ export function getCalendarStatus(startDate: string, endDate: string) {
   })
   
 }
+
+
+// 获取待审批列表
+export function getPendingApprovals(params: any) {
+  return request({
+    url: '/api/app/labor-report/pending-approvals',
+    method: 'get',
+    params
+  });
+}
+
+// 提交审批 (单条或遍历调用此接口)
+export function approveLaborReport(data: { reportId: string; detailId: string; isApproved: boolean; comment: string }) {
+  return request({
+    url: '/api/app/labor-report/approve',
+    method: 'post',
+    data
+  });
+}
+
+// 3. 获取用户列表
+export function getUserList() {
+  return request({
+    url: '/api/identity/users',
+    method: 'get',
+    // 默认自带分页，我们通过 maxResultCount 尽量拉取全量用于本地字典映射
+    params: { maxResultCount: 1000 } 
+  });
+}
+
+// 4. 获取所有项目列表（用于关联项目下拉框）
+export function getProjectList() {
+  return request({
+    url: '/api/app/project', // 依据您项目实际路由调整
+    method: 'get'
+  });
+}
+
+// 5. 获取部门树/列表（用于发起部门选择）
+export function getDepartmentList() {
+  return request({
+    url: '/api/app/department',
+    method: 'get'
+  });
+}

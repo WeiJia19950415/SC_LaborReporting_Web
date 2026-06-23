@@ -64,6 +64,12 @@ const routes = [
         name: 'ProjectRoles',
         component: () => import('../views/projectRoles/index.vue'),
         meta: { title: '项目角色管理', icon: 'Memo' } 
+      },
+      {
+        path: 'approval',
+        name: 'LaborReportApproval',
+        component: () => import('../views/laborReport/approval.vue'),
+        meta: { title: '工时审批', icon: 'Check' }
       }
     ]
   }

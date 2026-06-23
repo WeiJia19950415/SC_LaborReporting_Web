@@ -58,6 +58,12 @@
           <el-icon><House /></el-icon>
           <span>工时填报</span>
         </el-menu-item>
+
+        <el-menu-item index="/approval">
+          <el-icon><House /></el-icon>
+          <span>工时审批</span>
+        </el-menu-item>
+        
         
         <el-menu-item @click="logout" index="">
           <el-icon><SwitchButton /></el-icon>
