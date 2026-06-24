@@ -95,7 +95,7 @@
         <el-form-item label="工时类别" prop="laborClass">
           <el-radio-group v-model="form.laborClass">
             <el-radio :label="1">项目工时</el-radio>
-            <el-radio :label="2">其他工时</el-radio>
+            <!-- <el-radio :label="2">其他工时</el-radio> -->
           </el-radio-group>
         </el-form-item>
 

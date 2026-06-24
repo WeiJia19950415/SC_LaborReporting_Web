@@ -70,6 +70,12 @@ const routes = [
         name: 'LaborReportApproval',
         component: () => import('../views/laborReport/approval.vue'),
         meta: { title: '工时审批', icon: 'Check' }
+      },
+      {
+        path: 'reports',
+        name: 'reports',
+        component: () => import('../views/reports/DepartmentReport.vue'),
+        meta: { title: '报表查询', icon: 'Check' }
       }
     ]
   }

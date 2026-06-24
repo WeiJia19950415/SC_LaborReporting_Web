@@ -5,8 +5,10 @@
         <div class="card-header">
           <span class="title">我的工时填报</span>
           <div class="actions">
-            <el-button type="primary" plain size="small">本月汇总</el-button>
+            <el-button type="primary" plain size="small" @click="openSummary">详情记录</el-button>
           </div>
+          <Detail ref="detailRef" @refresh="fetchCalendarData" />
+          <SummaryDialog ref="summaryDialogRef" />
         </div>
       </template>
 
@@ -57,8 +59,11 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { getCalendarStatus } from '../../api/laborReport'
 import { ElMessage } from 'element-plus'
 import Detail from './detail.vue'
+import SummaryDialog from './SummaryDialog.vue'
+
 
 const detailRef = ref()
+const summaryDialogRef = ref()
 const locale = zhCn
 const loading = ref(false)
 const currentDate = ref(new Date())
@@ -69,6 +74,12 @@ const dailyStatusMap = ref<Record<string, any>>({})
 onMounted(() => {
   fetchCalendarData()
 })
+
+const openSummary = () => {
+  if(summaryDialogRef.value) {
+    summaryDialogRef.value.open()
+  }
+}
 
 // 获取当前日历面板中“能看到的”最小日期和最大日期
 const getCalendarDateRange = (date: Date) => {

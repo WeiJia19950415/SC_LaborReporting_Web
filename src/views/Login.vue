@@ -2,7 +2,10 @@
   <div class="login-container">
     <el-card class="login-card">
       <template #header>
-        <h2 style="text-align: center; margin: 0;">劳动申报系统登录</h2>
+        <div class="header-content">
+          <img src="../img/logo.png" alt="logo" class="logo" />
+          <h2 style="margin: 0;">思创报工系统登录</h2>
+        </div>
       </template>
       <el-form :model="loginForm" label-position="top">
         <el-form-item label="用户名">
@@ -82,9 +85,34 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #f3f4f6;
+  background-image: url('../img/bj.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #f3f4f6; 
 }
+
 .login-card {
   width: 400px;
+  margin-top: -350px; 
+  background: rgba(255, 255, 255, 0.95); 
+  border: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px; 
+}
+
+
+.logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 </style>
