@@ -4,7 +4,7 @@
       <template #header>
         <div class="header-content">
           <img src="../img/logo.png" alt="logo" class="logo" />
-          <h2 style="margin: 0;">思创报工系统登录</h2>
+          <h2 style="margin: 0;">思创报工系统</h2>
         </div>
       </template>
       <el-form :model="loginForm" label-position="top">
