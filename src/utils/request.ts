@@ -28,13 +28,12 @@ request.interceptors.response.use(
   (error) => {
     if (error.response) {
       const status = error.response.status;
-      if (status === 401) {
+      if (status === 401 || status === 403) {
         ElMessage.error('登录已过期，请重新登录');
         localStorage.removeItem('is_login'); 
+        localStorage.removeItem('token')
         router.push('/login');
-      } else if (status === 403) {
-        ElMessage.warning('您没有权限执行此操作');
-      } else if (status === 400) {
+      }  else if (status === 400) {
         ElMessage.error(error.response.data?.error?.message || '请求参数错误或缺少防伪令牌');
       } else {
         ElMessage.error(error.response.data?.error?.message || '请求失败，请稍后再试');

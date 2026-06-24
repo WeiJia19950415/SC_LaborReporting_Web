@@ -3,6 +3,15 @@ import { ref } from 'vue'
 import request from '../utils/request' 
 
 export const useUserStore = defineStore('user', () => {
+  const state = () => ({
+    id: '',
+    username: '',
+    email: '',
+    roles: [] as string[],
+    userInfo: null as any,
+    mustChangePassword: false 
+  })
+
   const token = ref(localStorage.getItem('token') || '')
   
   // 1. 定义用户 ID 与用户基本信息

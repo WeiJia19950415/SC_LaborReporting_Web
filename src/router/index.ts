@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Layout from '../layout/Layout.vue'; 
 import { useUserStore } from '../stores/user'; 
+import { checkRequiresPasswordChange } from '../api/user';
 
 const routes = [
   {
@@ -74,7 +75,7 @@ const routes = [
       {
         path: 'reports',
         name: 'reports',
-        component: () => import('../views/reports/DepartmentReport.vue'),
+        component: () => import('../views/reports/departmentReport.vue'),
         meta: { title: '报表查询', icon: 'Check' }
       }
     ]
@@ -86,29 +87,35 @@ const router = createRouter({
   routes
 });
 
+// src/router/index.ts
+
 router.beforeEach(async (to, from, next) => {
-  const isLogin = localStorage.getItem('is_login');
-  if (to.name !== 'Login' && !isLogin) {
-    next({ name: 'Login' });
-  } else {
-    if (isLogin && to.name !== 'Login') {
-      const userStore = useUserStore();
+  const userStore = useUserStore()
+
+  if (to.meta.requiresAuth) {
+    if (localStorage.getItem('is_login') === '1') {
       if (!userStore.id) {
         try {
-          await userStore.fetchApplicationConfiguration();
-          next({ ...to, replace: true });
+          await userStore.fetchApplicationConfiguration()
+          const requiresChange = await checkRequiresPasswordChange()
+          userStore.mustChangePassword = requiresChange
+          next()
         } catch (error) {
-          console.error('刷新时获取用户信息失败，可能 Token 已过期');
-          userStore.logout();
-          next({ name: 'Login' });
+          console.error('登录失效已过期，请重新登录', error)
+          localStorage.removeItem('is_login')
+          localStorage.removeItem('token')
+          userStore.$reset()
+          next({ name: 'Login' })
         }
       } else {
-        next();
+        next()
       }
     } else {
-      next();
+      next({ name: 'Login' })
     }
+  } else {
+    next()
   }
-});
+})
 
 export default router;

@@ -28,3 +28,18 @@ export function getAllRoles() {
 export function resetPassword(id: string) {
   return request({ url: `/api/app/user-management/${id}/reset-password`, method: 'post' });
 }
+// 检查是否需要强制改密
+export function checkRequiresPasswordChange() {
+  return request({
+    url: '/api/app/account-security/requires-password-change',
+    method: 'get'
+  })
+}
+// 提交强制改密
+export function forceChangePassword(data: any) {
+  return request({
+    url: '/api/app/account-security/force-change-password',
+    method: 'post',
+    data
+  })
+}
