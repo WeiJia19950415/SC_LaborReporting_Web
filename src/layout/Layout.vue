@@ -14,59 +14,68 @@
           <el-icon><House /></el-icon>
           <span>首页</span>
         </el-menu-item>
-        <el-sub-menu index="system" v-if="hasPermission('AbpIdentity.Users') || hasPermission('AbpIdentity.Roles')">
+        <el-sub-menu index="system" v-if="hasPermission('SC_LaborReporting.UserManagement') || hasPermission('SC_LaborReporting.DepartmentManagement')|| hasPermission('SC_LaborReporting.RoleManagement')">
           <template #title>
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
           </template>
-            <el-menu-item index="/users" v-if="hasPermission('AbpIdentity.Users')">
+            <el-menu-item index="/users" v-if="hasPermission('SC_LaborReporting.UserManagement')">
               <el-icon><User /></el-icon>
               用户管理
             </el-menu-item>
             
-            <el-menu-item index="/department" v-if="hasPermission('AbpIdentity.Users')">
+            <el-menu-item index="/department" v-if="hasPermission('SC_LaborReporting.DepartmentManagement')">
               <el-icon><User /></el-icon>
               部门管理
             </el-menu-item>
             
-            <el-menu-item index="/roles" v-if="hasPermission('AbpIdentity.Roles')">
+            <el-menu-item index="/roles" v-if="hasPermission('SC_LaborReporting.RoleManagement')">
               <el-icon><UserFilled /></el-icon>
               角色管理
             </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="system2" v-if="hasPermission('AbpIdentity.Users') || hasPermission('AbpIdentity.Roles')">
+        <el-sub-menu index="system2" v-if="hasPermission('SC_LaborReporting.LaborCategoriesManagement') || hasPermission('SC_LaborReporting.ProjectManagement')|| hasPermission('SC_LaborReporting.ProjectRoles')">
           <template #title>
             <el-icon><Setting /></el-icon>
             <span>基础数据管理</span>
           </template>
-            <el-menu-item index="/laborCategories" v-if="hasPermission('AbpIdentity.Users')">
+            <el-menu-item index="/laborCategories" v-if="hasPermission('SC_LaborReporting.LaborCategoriesManagement')">
               <el-icon><Message /></el-icon>
               工时分类设置
             </el-menu-item>
-            <el-menu-item index="/projects" v-if="hasPermission('AbpIdentity.Users')">
+            <el-menu-item index="/projects" v-if="hasPermission('SC_LaborReporting.Projects')">
               <el-icon><Star /></el-icon>
               项目管理
             </el-menu-item>
-            <el-menu-item index="/projectRoles" v-if="hasPermission('AbpIdentity.Users')">
+            <el-menu-item index="/projectRoles" v-if="hasPermission('SC_LaborReporting.ProjectRoles')">
               <el-icon><Star /></el-icon>
               项目角色
             </el-menu-item>
         </el-sub-menu>
 
-        <el-menu-item index="/laborReport">
+        <el-menu-item index="/laborReport" v-if="hasPermission('SC_LaborReporting.LaborReport')">
           <el-icon><House /></el-icon>
           <span>工时填报</span>
         </el-menu-item>
 
-        <el-menu-item index="/approval">
+        <el-menu-item index="/approval" v-if="hasPermission('SC_LaborReporting.LaborReport')">
           <el-icon><House /></el-icon>
           <span>工时审批</span>
         </el-menu-item>
-        <el-menu-item index="/reports">
-          <el-icon><House /></el-icon>
-          <span>报表查询</span>
-        </el-menu-item>
+
+
+
+        <el-sub-menu index="system3" v-if="hasPermission('SC_LaborReporting.ReportManagement.BusinessDetails') ">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>报表查询</span>
+          </template>
+          <el-menu-item index="/reports" v-if="hasPermission('SC_LaborReporting.ReportManagement.BusinessDetails')">
+            <el-icon><House /></el-icon>
+            <span>报表明细-业务</span>
+          </el-menu-item>
+        </el-sub-menu>
         
         <el-menu-item @click="logout" index="">
           <el-icon><SwitchButton /></el-icon>

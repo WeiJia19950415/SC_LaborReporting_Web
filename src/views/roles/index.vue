@@ -199,42 +199,38 @@ const handleAuthorize = async (row: any) => {
   }
 };
 
-// 解析 ABP 返回的 Group/Permissions 数据结构为 Element Tree 需要的嵌套格式
 const parsePermissionTree = (groups: any[]) => {
   const tree: any[] = [];
-  const leafKeys: string[] = []; // 只收集叶子节点的选中状态，防止 Element UI 树形组件误触父节点级联全选
+  const leafKeys: string[] = []; 
   const allNames: string[] = []; 
 
-  groups.forEach(group => {
-    // 构造根节点（组）
-    const rootNode = { id: group.name, label: group.displayName, children: [] as any[] };
+  const targetGroup = groups.find(group => group.name === 'SC_LaborReporting');
+
+  if (targetGroup) {
     const permMap: Record<string, any> = {};
 
-    group.permissions.forEach((p: any) => {
+    targetGroup.permissions.forEach((p: any) => {
       allNames.push(p.name);
       permMap[p.name] = { id: p.name, label: p.displayName, children: [] };
     });
 
-    group.permissions.forEach((p: any) => {
-      // 1. 组装树结构
+    targetGroup.permissions.forEach((p: any) => {
+      
       if (p.parentName && permMap[p.parentName]) {
         permMap[p.parentName].children.push(permMap[p.name]);
       } else {
-        rootNode.children.push(permMap[p.name]);
+        tree.push(permMap[p.name]); 
       }
 
-      // 2. 判断是否是叶子节点 (没有其他权限以它为 parentName)
-      const isLeaf = !group.permissions.some((child: any) => child.parentName === p.name);
-      
-      // 3. 收集默认选中的叶子节点
+      const isLeaf = !targetGroup.permissions.some((child: any) => child.parentName === p.name);
+
       if (p.isGranted && isLeaf) {
         leafKeys.push(p.name);
       }
     });
+  }
 
-    tree.push(rootNode);
-  });
-
+  // 4. 统一赋值
   permTreeData.value = tree;
   defaultCheckedKeys.value = leafKeys;
   allPermissionNames.value = allNames;

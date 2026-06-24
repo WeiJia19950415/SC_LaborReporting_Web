@@ -48,7 +48,6 @@
         </el-table-column>
         <el-table-column prop="projectName" label="关联项目" min-width="150" show-overflow-tooltip />
         <el-table-column prop="projectRoleName" label="申报角色" width="120" />
-        
         <el-table-column prop="laborCategoryFullName" label="任务分类" min-width="200" show-overflow-tooltip />
         
         <el-table-column prop="jobresponsibilities" label="工作内容" min-width="250" show-overflow-tooltip />
