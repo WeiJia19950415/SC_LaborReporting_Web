@@ -31,15 +31,21 @@ export function resetPassword(id: string) {
 // 检查是否需要强制改密
 export function checkRequiresPasswordChange() {
   return request({
-    url: '/api/app/account-security/requires-password-change',
+    url: '/requires-password-change',
     method: 'get'
   })
 }
 // 提交强制改密
 export function forceChangePassword(data: any) {
   return request({
-    url: '/api/app/account-security/force-change-password',
+    url: '/force-change-password',
     method: 'post',
     data
   })
 }
+
+export const getUsersApi = (params?: any) => {
+  return request.get('/api/identity/users', { 
+    params: params || { maxResultCount: 1000 } // 默认拉取最多1000条用于下拉框
+  });
+};

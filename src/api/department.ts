@@ -41,3 +41,9 @@ export function getDepartmentUsers(departmentId: string) {
     method: 'get',
   });
 }
+
+export const getDepartmentsApi = (params?: any) => {
+  return request.get('/api/app/department', { 
+    params: params || { maxResultCount: 1000 } // 默认拉取最多1000条用于下拉框
+  });
+};

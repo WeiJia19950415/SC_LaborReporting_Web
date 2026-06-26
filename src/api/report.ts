@@ -24,6 +24,9 @@ export function getDepartmentTable(params: any) {
     params
   })
 }
+export const getUserCrossReportApi = (params: any) => {
+  return request.get('/api/app/report/user-cross-report', { params });
+};
 
 export function exportDepartmentTable(params: any) {
   return request({
@@ -31,4 +34,6 @@ export function exportDepartmentTable(params: any) {
     method: 'get',
     params
   })
+
+  
 }

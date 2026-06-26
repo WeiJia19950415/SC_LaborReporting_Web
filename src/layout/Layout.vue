@@ -33,6 +33,11 @@
               <el-icon><Lock /></el-icon>
               角色管理
             </el-menu-item>
+
+            <el-menu-item index="/config" v-if="hasPermission('SC_LaborReporting.SystemConfig')">
+              <el-icon><Setting /></el-icon>
+              系统配置
+            </el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="system2" v-if="hasPermission('SC_LaborReporting.LaborCategoriesManagement') || hasPermission('SC_LaborReporting.ProjectManagement')|| hasPermission('SC_LaborReporting.ProjectRoles')">
@@ -74,6 +79,14 @@
           <el-menu-item index="/reports" v-if="hasPermission('SC_LaborReporting.ReportManagement.BusinessDetails')">
             <el-icon><Document /></el-icon>
             <span>报表明细-业务</span>
+          </el-menu-item>
+            <el-menu-item index="/userHoursReport" v-if="hasPermission('SC_LaborReporting.ReportManagement.UserHoursReport')">
+            <el-icon><Document /></el-icon>
+            <span>人员有效工时表</span>
+          </el-menu-item>
+          <el-menu-item index="/userFinanceReport" v-if="hasPermission('SC_LaborReporting.ReportManagement.UserFinanceReport')">
+            <el-icon><Document /></el-icon>
+            <span>人员有效工时表</span>
           </el-menu-item>
         </el-sub-menu>
         
