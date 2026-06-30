@@ -3,6 +3,7 @@ import Layout from '../layout/Layout.vue';
 import { useUserStore } from '../stores/user'; 
 import { checkRequiresPasswordChange } from '../api/user';
 import { ElMessage } from 'element-plus'; // 引入 ElMessage 用于拦截提示
+import { useSystemConfigStore } from '../stores/systemConfig';
 
 const routes = [
   {
@@ -118,6 +119,7 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const isLogin = localStorage.getItem('is_login') === '1'
+  const systemConfigStore = useSystemConfigStore()
 
   // 如果访问的不是登录页，则进行拦截校验
   if (to.name !== 'Login') {
@@ -125,8 +127,7 @@ router.beforeEach(async (to, from, next) => {
       if (!userStore.id) { // Vuex/Pinia 状态为空（说明刷新了页面或新开标签页）
         try {
           await userStore.fetchApplicationConfiguration()
-          
-          // 兜底校验：如果用户刷新页面企图绕过弹窗
+          await systemConfigStore.fetchSystemConfig()
           const requiresChange = await checkRequiresPasswordChange()
           if (requiresChange) {
             ElMessage.warning('检测到您的密码为初始密码，必须修改后才能访问系统！')
@@ -142,6 +143,9 @@ router.beforeEach(async (to, from, next) => {
           next({ name: 'Login' })
         }
       } else {
+        if (!systemConfigStore.isLoaded) {
+            await systemConfigStore.fetchSystemConfig();
+        } 
         next() // 状态正常，正常放行
       }
     } else {

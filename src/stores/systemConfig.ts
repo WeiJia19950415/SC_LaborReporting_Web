@@ -3,8 +3,8 @@ import { getSystemConfigApi } from '../api/systemConfig';
 
 export const useSystemConfigStore = defineStore('systemConfig', {
   state: () => ({
-    attendanceStartDate: 26,
-    attendanceEndDate: 25,
+    attendanceStartDate: 1,
+    attendanceEndDate: 30,
     auditStatus: false,
     isLoaded: false // 标记是否已加载完毕
   }),

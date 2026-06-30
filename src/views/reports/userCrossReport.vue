@@ -123,7 +123,6 @@ const tableData = ref<any[]>([]);
 const calculateDefaultDates = () => {
   const startDay = configStore.attendanceStartDate;
   const endDay = configStore.attendanceEndDate;
-  alert(`配置的起始日: ${startDay}, 截止日: ${endDay}`);
   const lastMonth = dayjs().subtract(1, 'month').startOf('month'); 
   const maxDaysInLastMonth = lastMonth.daysInMonth();
   const startDate = lastMonth.date(Math.min(startDay, maxDaysInLastMonth));
