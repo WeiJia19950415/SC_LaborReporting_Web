@@ -46,6 +46,34 @@
           <span class="tip-text">（开启后系统将应用严格的审计与修改校验规则）</span>
         </el-form-item>
 
+        <el-divider content-position="left">企业微信集成配置</el-divider>
+
+        <el-form-item label="企业微信 CorpID" prop="weComCorpId">
+          <el-input 
+            v-model="configForm.weComCorpId" 
+            placeholder="请输入企业微信的 CorpID (企业ID)"
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item label="应用 AgentId" prop="weComAgentId">
+          <el-input 
+            v-model="configForm.weComAgentId" 
+            placeholder="请输入自建应用的的 AgentId"
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item label="应用 Secret" prop="weComSecret">
+          <el-input 
+            v-model="configForm.weComSecret" 
+            type="password"
+            show-password
+            placeholder="请输入自建应用的 Secret"
+            clearable
+          />
+        </el-form-item>
+
         <el-form-item>
           <el-button type="primary" :loading="submitLoading" @click="submitConfig">
             保存配置
@@ -68,14 +96,15 @@ const configFormRef = ref<FormInstance>();
 const loading = ref(false);
 const submitLoading = ref(false);
 
-// 表单数据
 const configForm = reactive({
   attendanceStartDate: 1,
   attendanceEndDate: 31,
-  auditStatus: false
+  auditStatus: false,
+  weComCorpId: '',
+  weComAgentId: '',
+  weComSecret: ''
 });
 
-// 前端校验规则兜底验证
 const rules = reactive<FormRules>({
   attendanceStartDate: [
     { required: true, message: '请输入考勤起始日期', trigger: 'blur' },
@@ -84,10 +113,18 @@ const rules = reactive<FormRules>({
   attendanceEndDate: [
     { required: true, message: '请输入考勤截至日期', trigger: 'blur' },
     { type: 'number', min: 1, max: 31, message: '日期必须在 1 到 31 之间', trigger: 'blur' }
+  ],
+  weComCorpId: [
+    { required: true, message: '请输入企业微信 CorpID', trigger: 'blur' }
+  ],
+  weComAgentId: [
+    { required: true, message: '请输入自建应用的 AgentId', trigger: 'blur' }
+  ],
+  weComSecret: [
+    { required: true, message: '请输入自建应用的 Secret', trigger: 'blur' }
   ]
 });
 
-// 加载当前配置
 const loadConfig = async () => {
   loading.value = true;
   try {
@@ -96,6 +133,9 @@ const loadConfig = async () => {
       configForm.attendanceStartDate = res.attendanceStartDate;
       configForm.attendanceEndDate = res.attendanceEndDate;
       configForm.auditStatus = res.auditStatus;
+      configForm.weComCorpId = res.weComCorpId || '';
+      configForm.weComAgentId = res.weComAgentId || '';
+      configForm.weComSecret = res.weComSecret || '';
     }
   } catch (error) {
     ElMessage.error('加载系统配置失败，请检查网络或联系管理员');
@@ -105,7 +145,6 @@ const loadConfig = async () => {
   }
 };
 
-// 提交保存配置
 const submitConfig = async () => {
   if (!configFormRef.value) return;
   await configFormRef.value.validate(async (valid) => {
@@ -115,7 +154,10 @@ const submitConfig = async () => {
         await updateSystemConfigApi({
           attendanceStartDate: configForm.attendanceStartDate,
           attendanceEndDate: configForm.attendanceEndDate,
-          auditStatus: configForm.auditStatus
+          auditStatus: configForm.auditStatus,
+          weComCorpId: configForm.weComCorpId,
+          weComAgentId: configForm.weComAgentId,
+          weComSecret: configForm.weComSecret
         });
         
         ElMessage.success('配置保存成功！');
@@ -132,7 +174,6 @@ const submitConfig = async () => {
   });
 };
 
-// 组件挂载时自动拉取最新配置填入表单
 onMounted(() => {
   loadConfig();
 });
@@ -165,5 +206,9 @@ onMounted(() => {
   margin-left: 15px;
   color: #909399;
   font-size: 13px;
+}
+/* 给企微输入框加一个合适的宽度，避免撑满整行显得不美观 */
+.el-input {
+  max-width: 400px;
 }
 </style>
