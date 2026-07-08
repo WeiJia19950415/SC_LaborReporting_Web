@@ -7,19 +7,36 @@
           <h2 style="margin: 0;">思创报工系统</h2>
         </div>
       </template>
-      <el-form :model="loginForm" label-position="top">
-        <el-form-item label="用户名">
-          <el-input v-model="loginForm.username" placeholder="请输入用户名" />
-        </el-form-item>
-        <el-form-item label="密码">
-          <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" show-password />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" style="width: 100%;" :loading="loading" @click="handleLogin">
-            登 录
+
+      <div v-show="loginType === 'account'">
+        <el-form :model="loginForm" label-position="top">
+          <el-form-item label="用户名">
+            <el-input v-model="loginForm.username" placeholder="请输入用户名" />
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" show-password />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" style="width: 100%;" :loading="loading" @click="handleLogin">
+              登 录
+            </el-button>
+          </el-form-item>
+        </el-form>
+        <div class="login-type-switch">
+          <el-button type="primary" link @click="switchLoginType('wecom')">
+            <el-icon style="margin-right: 4px;"><ChatDotSquare /></el-icon>使用企业微信登录
           </el-button>
-        </el-form-item>
-      </el-form>
+        </div>
+      </div>
+
+      <div v-show="loginType === 'wecom'" class="wecom-login-wrapper">
+        <div id="wx_reg" v-loading="wecomLoading"></div>
+        <div class="login-type-switch">
+          <el-button type="primary" link @click="switchLoginType('account')">
+            <el-icon style="margin-right: 4px;"><User /></el-icon>返回账号密码登录
+          </el-button>
+        </div>
+      </div>
     </el-card>
 
     <el-dialog
@@ -33,7 +50,7 @@
     >
       <el-form :model="changePwdForm" ref="changePwdFormRef" label-position="top">
         <el-form-item label="原密码">
-          <el-input v-model="changePwdForm.currentPassword" type="password" disabled />
+          <el-input v-model="changePwdForm.currentPassword" type="password" :disabled="!!changePwdForm.currentPassword" placeholder="请输入原密码" />
         </el-form-item>
         <el-form-item 
           label="新密码" 
@@ -51,25 +68,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { loginApi, getAppConfigApi } from '../api/index'; // 引入我们统一管理的 API
+import { ChatDotSquare, User } from '@element-plus/icons-vue'; // 引入图标
+import { loginApi, getAppConfigApi } from '../api/index'; 
 import { useUserStore } from '../stores/user'; 
-import { forceChangePassword, checkRequiresPasswordChange } from '../api/user'; // 引入密码相关 API
+import { forceChangePassword, checkRequiresPasswordChange } from '../api/user'; 
 import { useSystemConfigStore } from '../stores/systemConfig';
+import { isWeCom } from '../utils/env';
+import { getSystemConfigApi } from '../api/systemConfig';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore(); 
-const loading = ref(false);
 const systemConfigStore = useSystemConfigStore();
+
+const loading = ref(false);
+const loginType = ref<'account' | 'wecom'>('account');
+const wecomLoading = ref(false);
 
 const loginForm = ref({
   username: '',
   password: ''
 });
 
-// 改密弹窗相关变量
+// 授权回调地址必须是完整的当前页面URL，并在企微后台配置了可信域名
+const redirectUri = encodeURIComponent(window.location.origin + '/login'); 
+
+// 弹窗相关
 const showChangePwdDialog = ref(false);
 const pwdLoading = ref(false);
 const changePwdFormRef = ref();
@@ -78,6 +105,118 @@ const changePwdForm = ref({
   newPassword: ''
 });
 
+onMounted(() => {
+  // 1. 检查 URL 中是否有企业微信回调的 code
+  const code = route.query.code as string;
+  if (code) {
+    handleWeComCodeLogin(code);
+    return;
+  }
+
+  // 2. 环境判断，决定初始登录方式
+  if (isWeCom()) {
+    // 企微内置浏览器：直接发起 OAuth2 网页静默授权
+    const oauthUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${corpId}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&state=STATE#wechat_redirect`;
+    window.location.replace(oauthUrl);
+  } else {
+    // PC端浏览器：默认显示账号密码，可切换扫码
+    loginType.value = 'account';
+  }
+});
+
+// 切换登录方式
+const switchLoginType = (type: 'account' | 'wecom') => {
+  loginType.value = type;
+  if (type === 'wecom') {
+    initWeComQR();
+  }
+};
+
+// 初始化PC端企业微信扫码登录
+const initWeComQR = () => {
+  wecomLoading.value = true;
+  // 避免重复加载 JS
+  if (document.getElementById('wwLoginScript')) {
+    renderQrCode();
+    wecomLoading.value = false;
+    return;
+  }
+
+  const script = document.createElement('script');
+  script.id = 'wwLoginScript';
+  script.src = 'https://rescdn.qqmail.com/node/ww/wwopenmng/js/sso/wwLogin-1.0.0.js';
+  script.onload = () => {
+    renderQrCode();
+    wecomLoading.value = false;
+  };
+  script.onerror = () => {
+    ElMessage.error('企业微信扫码组件加载失败');
+    wecomLoading.value = false;
+  }
+  document.body.appendChild(script);
+};
+
+const renderQrCode = async () => {
+  document.getElementById('wx_reg')!.innerHTML = ''; 
+  
+  try {
+    // 直接 await 请求数据
+    const res: any = await getSystemConfigApi();
+    const corpId = res.weComCorpId; 
+    const agentId = res.weComAgentId;
+    console.log('获取到的配置信息:', res);
+
+    // @ts-ignore
+    window.WwLogin({
+      "id": "wx_reg",  
+      "appid": corpId,
+      "agentid": agentId,
+      "redirect_uri": redirectUri,
+      "state": "STATE",
+      "href": "", 
+    });
+  } catch (error) {
+    console.error('获取系统配置失败:', error);
+    ElMessage.error('获取扫码登录配置失败');
+  }
+};
+
+// 提取公共逻辑：登录成功后的通用处理（拉配置 + 检查改密）
+const processLoginSuccess = async (token: string, currentPwd = '') => {
+  localStorage.setItem('is_login', '1'); 
+  if (token) userStore.token = token;
+
+  try {
+    await userStore.fetchApplicationConfiguration();
+    await systemConfigStore.fetchSystemConfig();
+  } catch (err) {
+    console.error('获取登录人信息或系统配置失败', err);
+  }
+
+  // 核心安全拦截逻辑
+  let requiresChange;
+  try {
+    requiresChange = await checkRequiresPasswordChange();
+  } catch (err) {
+    console.error('检查密码状态失败:', err);
+    ElMessage.error('密码安全检测失败，请联系管理员');
+    return false; // 阻断流程
+  }
+
+  if (requiresChange) {
+    // 企微单点登录时，用户可能不知道原密码，如果业务允许可以直接置空让用户手动输入原密码，或后端SSO跳过此检查。
+    changePwdForm.value.currentPassword = currentPwd; 
+    changePwdForm.value.newPassword = '';
+    showChangePwdDialog.value = true;
+    return false; 
+  }
+
+  ElMessage.success('登录成功！');
+  router.push('/');
+  return true;
+};
+
+// 账号密码登录
 const handleLogin = async () => {
   if (!loginForm.value.username || !loginForm.value.password) {
     ElMessage.warning('请输入用户名和密码');
@@ -91,58 +230,44 @@ const handleLogin = async () => {
     } catch (e) {
       console.warn('获取应用初始配置失败，继续尝试登录', e);
     }
+    
     const loginData = {
       userNameOrEmailAddress: loginForm.value.username,
       password: loginForm.value.password,
-      rememberMe: true // 保持登录状态
+      rememberMe: true 
     };
     const res: any = await loginApi(loginData);
     
     if (res && res.result === 1) {
-      localStorage.setItem('is_login', '1'); 
-
       const savedToken = res.token || res.accessToken || localStorage.getItem('token');
-      if (savedToken) {
-        userStore.token = savedToken;
-      }
-      try {
-        //获取登陆人信息
-        await userStore.fetchApplicationConfiguration();
-        //获取全局系统配置
-        await systemConfigStore.fetchSystemConfig();
-      } catch (err) {
-        console.error('获取登录人信息失败', err);
-      }
-
-      // 2. 🚨 核心安全拦截逻辑（增加独立 try-catch 防止崩溃静默）
-      let requiresChange;
-      try {
-        requiresChange = await checkRequiresPasswordChange();
-      } catch (err) {
-        console.error('检查密码状态失败:', err);
-        ElMessage.error('密码安全检测失败，请联系管理员或检查网络接口');
-        loading.value = false;
-        return; // 阻断后续流程
-      }
-
-      if (requiresChange) {
-        // 如果需要修改密码：弹出对话框，中断进入首页的流程
-        changePwdForm.value.currentPassword = loginForm.value.password; // 自动填充刚刚输入的正确密码
-        changePwdForm.value.newPassword = '';
-        showChangePwdDialog.value = true;
-        loading.value = false;
-        return; 
-      }
-
-      // 不需要修改密码，正常进入系统
-      ElMessage.success('登录成功！');
-      router.push('/');
+      await processLoginSuccess(savedToken, loginForm.value.password);
     } else {
       ElMessage.error(res.description || '用户名或密码错误');
     }
   } catch (error: any) {
     console.error('登录异常:', error);
     ElMessage.error(error.message || '登录遇到未知异常，请检查后端服务');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 企业微信 Code 登录
+const handleWeComCodeLogin = async (code: string) => {
+  loading.value = true;
+  try {
+    // 调用我们在 user.ts store 中新增的方法
+    const token = await userStore.loginByWeComCode(code);
+    if (token) {
+      // 企微登录由于没有输入原密码，传空字符串
+      await processLoginSuccess(token, '');
+    }
+  } catch (error: any) {
+    console.error('企微授权登录失败:', error);
+    ElMessage.error('企业微信快捷登录失败，请使用账号密码登录');
+    // 如果失败，清除URL上的code参数，防止死循环刷新
+    router.replace({ path: '/login' }); 
+    loginType.value = 'account';
   } finally {
     loading.value = false;
   }
@@ -160,15 +285,15 @@ const submitChangePwd = async () => {
           newPassword: changePwdForm.value.newPassword
         });
         
-        ElMessage.success('密码修改成功，请使用新密码重新登录！');
+        ElMessage.success('密码修改成功，请重新登录！');
         showChangePwdDialog.value = false;
         
-        // 修改成功后，清除现有登录状态，要求用户重新输入新密码
         userStore.logout(); 
-        loginForm.value.password = ''; // 清空登录框的旧密码
+        loginForm.value.password = ''; 
+        router.replace({ path: '/login' }); // 确保留在登录页
+        loginType.value = 'account'; // 改密后强制切回账号密码登录重新验证
       } catch (error: any) {
-        // 捕获后端返回的密码规则不满足等错误
-        ElMessage.error(error.response?.data?.error?.message || '密码修改失败，请确认新密码符合复杂度要求！');
+        ElMessage.error(error.response?.data?.error?.message || '密码修改失败，请确认原密码无误且新密码符合要求！');
       } finally {
         pwdLoading.value = false;
       }
@@ -210,5 +335,24 @@ const submitChangePwd = async () => {
   width: 36px;
   height: 36px;
   object-fit: contain;
+}
+
+.login-type-switch {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.wecom-login-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+}
+
+#wx_reg {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 </style>

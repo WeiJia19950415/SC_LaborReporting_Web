@@ -44,6 +44,10 @@ export function forceChangePassword(data: any) {
   })
 }
 
+export const loginByWeComCodeApi = (code: string) => {
+  return request.get(`/api/app/we-com-auth/login-by-code?code=${code}`);
+}
+
 export const getUsersApi = (params?: any) => {
   return request.get('/api/identity/users', { 
     params: params || { maxResultCount: 1000 } // 默认拉取最多1000条用于下拉框

@@ -1,6 +1,9 @@
+// src/stores/user.ts
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import request from '../utils/request' 
+import request from '../utils/request'
+// 假设你在 api/user.ts 中定义了这个接口，稍后请自行补充
+import { loginByWeComCodeApi } from '../api/user' 
 
 export const useUserStore = defineStore('user', () => {
   const state = () => ({
@@ -63,6 +66,21 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  const loginByWeComCode = async (code: string) => {
+    try {
+      const res: any = await loginByWeComCodeApi(code);
+      const savedToken = res.token || res.accessToken || res;
+      if (savedToken) {
+        token.value = savedToken;
+        localStorage.setItem('token', savedToken);
+      }
+      return savedToken;
+    } catch (error) {
+      console.error('企业微信登录失败:', error);
+      throw error;
+    }
+  }
+
   //清除登录状态
   const logout = () => {
     token.value = ''
@@ -78,6 +96,7 @@ export const useUserStore = defineStore('user', () => {
     userInfo,
     permissions,
     fetchApplicationConfiguration,
+    loginByWeComCode,
     logout
   }
 })
