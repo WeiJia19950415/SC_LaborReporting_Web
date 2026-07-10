@@ -52,7 +52,7 @@
 
         <el-table :data="userList" border style="width: 100%" v-loading="tableLoading">
           <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="userName" label="用户名(手机号)" min-width="150" />
+          <el-table-column prop="userName" label="用户名" min-width="150" />
           <el-table-column prop="name" label="姓名" min-width="120" />
           <el-table-column prop="phoneNumber" label="电话" min-width="150" />
         </el-table>

@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus';
 
 // 创建 axios 实例
 const request = axios.create({
-  baseURL: 'https://localhost:44355/', 
+  baseURL: import.meta.env.VITE_API_URL,
   timeout: 10000,
   withCredentials: true, // 允许跨域请求时携带 Cookie
   xsrfCookieName: 'XSRF-TOKEN',               // ABP 默认放在 Cookie 中的 Token 名称

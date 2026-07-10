@@ -4,10 +4,19 @@
       <div class="header-actions" style="margin-bottom: 20px;">
         <el-button type="primary" icon="Plus" @click="handleCreate">新增用户</el-button>
       </div>
-
+      <!-- <el-upload
+        class="upload-demo"
+        action="#"
+        :show-file-list="false"
+        :http-request="handleImport"
+        accept=".xlsx,.xls,.csv"
+        style="display: inline-block; margin-left: 10px;"
+      >
+        <el-button type="success" icon="Upload">批量导入用户</el-button>
+      </el-upload> -->
       <el-table :data="tableData" border v-loading="loading" style="width: 100%">
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="userName" label="用户名(手机号)" min-width="130" />
+        <el-table-column prop="userName" label="用户名(工号)" min-width="130" />
         <el-table-column prop="name" label="姓名" min-width="120" />
         <el-table-column prop="phoneNumber" label="电话" min-width="130" />
         <el-table-column prop="departmentName" label="所属部门" min-width="150">
@@ -54,7 +63,7 @@
         <el-form-item label="用户名" prop="userName">
           <el-input 
             v-model="form.userName" 
-            placeholder="请输入手机号作为用户名" 
+            placeholder="请输入工号作为用户名" 
             :disabled="isEdit" 
             @input="handleUserNameInput"
           />
@@ -66,6 +75,10 @@
 
         <el-form-item label="电话" prop="phoneNumber">
           <el-input v-model="form.phoneNumber" placeholder="与用户名自动同步" disabled />
+        </el-form-item>
+
+        <el-form-item label="工号" prop="jobNumber">
+          <el-input v-model="form.jobNumber" placeholder="请输入工号" :disabled="isEdit" />
         </el-form-item>
 
         <el-form-item v-if="!isEdit" label="初始密码" prop="password">
@@ -113,7 +126,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
-import { getUserList, createUser, updateUser, deleteUser, getAllRoles, resetPassword } from '../../api/user';
+import { getUserList, createUser, updateUser, deleteUser, getAllRoles, resetPassword,importUsersApi } from '../../api/user';
 import { getDepartmentList } from '../../api/department'; 
 
 const tableData = ref([]);
@@ -131,6 +144,7 @@ const form = reactive({
   id: '',
   userName: '',
   name: '',
+  jobNumber: '',
   password: 'SCjg.123000', // ⭐ 默认初始密码
   phoneNumber: '',
   departmentId: null as string | null,
@@ -153,8 +167,9 @@ const validatePhone = (rule: any, value: any, callback: any) => {
 };
 
 const rules = reactive({
-  userName: [{ required: true, validator: validatePhone, trigger: 'blur' }],
+  userName: [{ required: true, trigger: 'blur' }],
   name: [{ required: true, message: '姓名不能为空', trigger: 'blur' }],
+  jobNumber: [{ required: true, message: '工号不能为空', trigger: 'blur' }],
   phoneNumber: [{ required: true, message: '电话不能为空', trigger: 'blur' }] ,
   departmentId: [{ required: true, message: '请选择所属部门', trigger: 'change' }],
   roleNames: [{ required: true, message: '请选择至少一个角色', trigger: 'change' }]
@@ -196,6 +211,28 @@ const initDictData = async () => {
   }
 };
 
+const handleImport = async (options: any) => {
+  try {
+    const res: any = await importUsersApi(options.file);
+    if (res.type && res.type.includes('spreadsheetml.sheet')) {
+      const url = window.URL.createObjectURL(new Blob([res]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', '导入失败人员名单.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      
+      ElMessage.warning('存在导入失败的数据，已为您下载失败明细Excel！');
+    } else {
+      ElMessage.success('全部数据导入成功！');
+    }
+    
+    fetchData(); 
+  } catch (error) {
+    ElMessage.error('文件导入失败，请检查网络或模板格式');
+  }
+};
+
 const fetchData = async () => {
   loading.value = true;
   try {
@@ -220,6 +257,7 @@ const handleCreate = () => {
   form.name = "";
   form.phoneNumber = "";
   form.departmentId = "";
+  form.jobNumber = "";
   form.roleNames = [];
   form.isActive = true;
 };
@@ -231,6 +269,7 @@ const handleEdit = (row: any) => {
   form.name = row.name;
   form.phoneNumber = row.phoneNumber;
   form.departmentId = row.departmentId;
+  form.jobNumber = row.jobNumber;
   form.roleNames = row.roleNames || [];
   form.isActive = row.isActive;
   dialog.visible = true;

@@ -44,6 +44,19 @@ export function forceChangePassword(data: any) {
   })
 }
 
+// 上传用户的接口
+export const importUsersApi = (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return request.post('/api/app/user-management/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    },
+    responseType: 'blob'
+  });
+};
+
 export const loginByWeComCodeApi = (code: string) => {
   return request.get(`/api/app/we-com-auth/login-by-code?code=${code}`);
 }

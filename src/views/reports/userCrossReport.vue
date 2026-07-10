@@ -97,6 +97,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
 import { getUserCrossReportApi } from '../../api/report';
 import { getDepartmentsApi } from '../../api/department';
 import { getUsersApi } from '../../api/user';
@@ -216,7 +217,50 @@ const loadFilters = async () => {
 };
 
 const exportData = () => {
-  ElMessage.warning('导出功能可接入后续实现');
+  if (!tableData.value || tableData.value.length === 0) {
+    ElMessage.warning('当前没有数据可供导出');
+    return;
+  }
+  const headerRow = ['人员名称', '期间总计'];
+  dateColumns.value.forEach(dateItem => {
+    const dateStr = dateItem.date.substring(5); // 取 MM-DD
+    if (dateItem.projects.length === 0) {
+      headerRow.push(`${dateStr} (无)`);
+    } else {
+      dateItem.projects.forEach(proj => {
+        headerRow.push(`${dateStr} - ${proj.name}`);
+      });
+    }
+  });
+  const dataRows: any[][] = [];
+  tableData.value.forEach(row => {
+    const rowData = [
+      row.userName, 
+      row.totalSum ? Number(row.totalSum.toFixed(1)) : 0
+    ];
+    dateColumns.value.forEach(dateItem => {
+      if (dateItem.projects.length === 0) {
+        rowData.push('-');
+      } else {
+        dateItem.projects.forEach(proj => {
+          const val = row[`${dateItem.date}_${proj.id}`];
+          rowData.push(val > 0 ? Number(val.toFixed(1)) : '-');
+        });
+      }
+    });
+    dataRows.push(rowData);
+  });
+  const worksheet = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+  const wscols = [{ wch: 15 }, { wch: 10 }]; 
+  worksheet['!cols'] = wscols;
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, isFinance.value ? '财务工时矩阵' : '有效工时矩阵');
+  const titleName = isFinance.value ? '人员财务工时矩阵表' : '人员有效工时矩阵表';
+  const fileName = `${titleName}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+  
+  XLSX.writeFile(workbook, fileName);
+  ElMessage.success('导出成功');
 };
 
 onMounted(async () => {
