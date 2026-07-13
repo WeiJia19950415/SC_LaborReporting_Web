@@ -44,6 +44,26 @@
       <el-table-column prop="projectCode" label="项目工号" width="120" show-overflow-tooltip />
       <el-table-column prop="projectName" label="项目名称" min-width="150" show-overflow-tooltip />
       <el-table-column prop="projectRoleName" label="项目角色" width="120" show-overflow-tooltip />
+      
+      <el-table-column label="产品系列" min-width="160">
+        <template #default="{ row }">
+          <el-select 
+            v-model="row.productSeriesId" 
+            placeholder="请选择" 
+            clearable 
+            filterable
+            :disabled="row.status !== -1"
+          >
+            <el-option
+              v-for="item in productSeriesOptions"
+              :key="item.id"
+              :label="`${item.code} - ${item.name}`" 
+              :value="item.id"
+            />
+          </el-select>
+        </template>
+      </el-table-column>
+
       <el-table-column label="任务分类 (必填)" min-width="180">
         <template #default="{ row }">
           <el-select v-model="row.laborCategoryId" placeholder="请选择任务" style="width: 100%" :disabled="row.status !== -1" @change="(val) => handleTaskChange(row, val)">
@@ -93,13 +113,13 @@ import { getProjects } from '../../api/project'
 import { getLeafCategories } from '../../api/laborCategory'
 import { useUserStore } from '../../stores/user'
 import { saveDailyLaborReport, getLaborDetailsByIds } from '../../api/laborReport'
-
-// 【新增】引入配置 Store
+import { getProductSeriesList } from '../../api/productSeries';
 import { useSystemConfigStore } from '../../stores/systemConfig'
 
 const emit = defineEmits(['refresh'])
 const userStore = useUserStore()
 const systemConfigStore = useSystemConfigStore()
+const productSeriesOptions = ref<any[]>([]);
 
 const visible = ref(false)
 const isEdit = ref(false)
@@ -118,6 +138,16 @@ const form = reactive({
 
 const tableData = ref<any[]>([])
 
+// 获取产品系列下拉数据
+const loadProductSeries = async () => {
+  try {
+    const res = await getProductSeriesList({ SkipCount: 0, MaxResultCount: 1000 });
+    productSeriesOptions.value = res.items || [];
+  } catch (error) {
+    console.error('获取产品系列失败', error);
+  }
+};
+
 const open = async (date: string, editMode: boolean, detailIds: string[] = []) => {
   currentDate.value = date
   isEdit.value = editMode
@@ -132,6 +162,10 @@ const open = async (date: string, editMode: boolean, detailIds: string[] = []) =
     const pRes = await getProjects({ maxResultCount: 1000 })
     projects.value = pRes.items || pRes
   }
+  
+  if (productSeriesOptions.value.length === 0) {
+    loadProductSeries()
+  }
 
   if (editMode && detailIds && detailIds.length > 0) {
     try {
@@ -141,7 +175,6 @@ const open = async (date: string, editMode: boolean, detailIds: string[] = []) =
         for (const item of serverDetails) {
           const tasks = await fetchTasksForCondition(item.projectRoleId, item.laborClass)
           
-          // 【修改】根据 auditStatus 决定回显的字段来源
           const defaultHours = systemConfigStore.auditStatus ? (item.hoursFinance ?? item.hours) : item.hours
 
           tableData.value.push({
@@ -152,6 +185,7 @@ const open = async (date: string, editMode: boolean, detailIds: string[] = []) =
             projectName: item.projectName,
             projectRoleId: item.projectRoleId,
             projectRoleName: item.projectRoleName,
+            productSeriesId: item.productSeriesId || null, // 【新增】产品系列回显
             laborCategoryId: item.laborCategoryId,
             laborCategoryCode: item.laborCategoryCode,
             jobresponsibilities: item.jobresponsibilities,
@@ -199,6 +233,7 @@ const addRow = async () => {
     projectName: selectedProj?.name || '-',
     projectRoleId: form.projectRoleId,
     projectRoleName: selectedRole?.name || '-',
+    productSeriesId: null, // 【新增】新行默认产品系列为空
     laborCategoryId: '',
     laborCategoryCode: '',
     jobresponsibilities: '',
@@ -242,7 +277,6 @@ const submitReport = async () => {
     if (!row.jobresponsibilities) return ElMessage.warning(`第 ${i + 1} 行请填写工作内容`)
   }
 
-  // 【新增】配置要求：如果 auditStatus 为 true，校验填写的总工时不能超过 8
   if (systemConfigStore.auditStatus) {
     const totalHours = tableData.value.reduce((acc, row) => acc + row.hours, 0)
     if (totalHours > 8) {
@@ -257,7 +291,6 @@ const submitReport = async () => {
       departmentId: userStore.userInfo?.departmentId,
       reportDate: currentDate.value,
       details: tableData.value.map(r => {
-        // 构建明细对象的基础属性
         const baseDetail: any = {
           id: r.id, 
           laborClass: r.laborClass,
@@ -266,16 +299,16 @@ const submitReport = async () => {
           projectName: r.projectName,
           projectRoleId: r.projectRoleId,
           projectRoleName: r.projectRoleName,
+          productSeriesId: r.productSeriesId || null, // 【新增】将选择的产品系列ID提交至后端
           laborCategoryId: r.laborCategoryId,
           laborCategoryCode: r.laborCategoryCode,
           jobresponsibilities: r.jobresponsibilities
         }
         
-        // 【修改】根据 auditStatus 决定把工时填到后端的哪个字段去
         if (systemConfigStore.auditStatus) {
-          baseDetail.hoursFinance = r.hours // 取值赋给 HoursFinance
+          baseDetail.hoursFinance = r.hours 
         } else {
-          baseDetail.hours = r.hours // 正常赋给 Hours
+          baseDetail.hours = r.hours 
         }
         
         return baseDetail

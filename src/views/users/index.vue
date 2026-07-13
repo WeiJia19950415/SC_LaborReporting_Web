@@ -1,19 +1,39 @@
 <template>
   <div class="user-management-container">
     <el-card shadow="never">
+      <el-form :inline="true" :model="queryParams" class="search-form" style="margin-bottom: 10px;">
+        <el-form-item label="模糊查询">
+          <el-input
+            v-model="queryParams.filter"
+            placeholder="支持工号、姓名、电话"
+            clearable
+            @clear="handleQuery"
+            @keyup.enter="handleQuery"
+            style="width: 220px;"
+          />
+        </el-form-item>
+        <el-form-item label="所属部门">
+          <el-tree-select
+            v-model="queryParams.departmentId"
+            :data="deptOptions"
+            :props="{ label: 'displayName', children: 'children', value: 'id' }"
+            check-strictly
+            placeholder="请选择部门筛选"
+            clearable
+            style="width: 200px;"
+            @change="handleQuery"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
+          <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <div class="header-actions" style="margin-bottom: 20px;">
         <el-button type="primary" icon="Plus" @click="handleCreate">新增用户</el-button>
       </div>
-      <!-- <el-upload
-        class="upload-demo"
-        action="#"
-        :show-file-list="false"
-        :http-request="handleImport"
-        accept=".xlsx,.xls,.csv"
-        style="display: inline-block; margin-left: 10px;"
-      >
-        <el-button type="success" icon="Upload">批量导入用户</el-button>
-      </el-upload> -->
+
       <el-table :data="tableData" border v-loading="loading" style="width: 100%">
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="userName" label="用户名(工号)" min-width="130" />
@@ -45,21 +65,17 @@
         <el-pagination
           v-model:current-page="queryParams.page"
           v-model:page-size="queryParams.size"
+          :page-sizes="[15,50, 100]"
           :total="total"
-          layout="total, prev, pager, next, jumper"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
           @current-change="fetchData"
         />
       </div>
     </el-card>
 
-    <el-dialog
-      :title="dialog.title"
-      v-model="dialog.visible"
-      width="550px"
-      @close="resetForm"
-    >
+    <el-dialog :title="dialog.title" v-model="dialog.visible" width="550px" @close="resetForm">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
-        
         <el-form-item label="用户名" prop="userName">
           <el-input 
             v-model="form.userName" 
@@ -68,23 +84,18 @@
             @input="handleUserNameInput"
           />
         </el-form-item>
-
         <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入姓名" :disabled="isEdit" />
         </el-form-item>
-
         <el-form-item label="电话" prop="phoneNumber">
           <el-input v-model="form.phoneNumber" placeholder="与用户名自动同步" disabled />
         </el-form-item>
-
         <el-form-item label="工号" prop="jobNumber">
           <el-input v-model="form.jobNumber" placeholder="请输入工号" :disabled="isEdit" />
         </el-form-item>
-
         <el-form-item v-if="!isEdit" label="初始密码" prop="password">
           <el-input v-model="form.password" type="password" disabled />
         </el-form-item>
-
         <el-form-item label="所属部门" prop="departmentId">
           <el-tree-select
             v-model="form.departmentId"
@@ -96,22 +107,14 @@
             clearable 
           />
         </el-form-item>
-
         <el-form-item label="角色" prop="roleNames">
           <el-select v-model="form.roleNames" multiple placeholder="请选择角色" style="width: 100%;">
-            <el-option
-              v-for="role in roleOptions"
-              :key="role.name"
-              :label="role.name"
-              :value="role.name"
-            />
+            <el-option v-for="role in roleOptions" :key="role.name" :label="role.name" :value="role.name" />
           </el-select>
         </el-form-item>
-
         <el-form-item label="状态" prop="isActive">
           <el-switch v-model="form.isActive" active-text="启用" inactive-text="禁用" />
         </el-form-item>
-
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -126,16 +129,23 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
-import { getUserList, createUser, updateUser, deleteUser, getAllRoles, resetPassword,importUsersApi } from '../../api/user';
+import { getUserList, createUser, updateUser, deleteUser, getAllRoles, resetPassword } from '../../api/user';
 import { getDepartmentList } from '../../api/department'; 
 
 const tableData = ref([]);
 const loading = ref(false);
 const total = ref(0);
-const queryParams = reactive({ page: 1, size: 10 });
+
+// 默认 20 行，添加模糊查询字段 filter 和部门筛选字段 departmentId
+const queryParams = reactive({ 
+  page: 1, 
+  size: 15,
+  filter: '',
+  departmentId: null as string | null
+});
+
 const deptOptions = ref([]);
 const roleOptions = ref([]);
-
 const dialog = reactive({ visible: false, title: '' });
 const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
@@ -145,7 +155,7 @@ const form = reactive({
   userName: '',
   name: '',
   jobNumber: '',
-  password: 'SCjg.123000', // ⭐ 默认初始密码
+  password: 'SCjg.123000', 
   phoneNumber: '',
   departmentId: null as string | null,
   roleNames: [] as string[],
@@ -154,20 +164,8 @@ const form = reactive({
 
 const isEdit = computed(() => !!form.id);
 
-// ⭐ 手机号验证规则
-const validatePhone = (rule: any, value: any, callback: any) => {
-  const reg = /^1[3-9]\d{9}$/;
-  if (!value) {
-    callback(new Error('用户名(手机号)不能为空'));
-  } else if (!reg.test(value)) {
-    callback(new Error('请输入正确的11位手机号码'));
-  } else {
-    callback();
-  }
-};
-
 const rules = reactive({
-  userName: [{ required: true, trigger: 'blur' }],
+  userName: [{ required: true, message: '用户名不能为空', trigger: 'blur' }],
   name: [{ required: true, message: '姓名不能为空', trigger: 'blur' }],
   jobNumber: [{ required: true, message: '工号不能为空', trigger: 'blur' }],
   phoneNumber: [{ required: true, message: '电话不能为空', trigger: 'blur' }] ,
@@ -175,11 +173,27 @@ const rules = reactive({
   roleNames: [{ required: true, message: '请选择至少一个角色', trigger: 'change' }]
 });
 
-// ⭐ 联动：当输入用户名时，同步更新电话号码
 const handleUserNameInput = (val: string) => {
   if (!isEdit.value) {
     form.phoneNumber = val;
   }
+};
+
+// 查询和重置
+const handleQuery = () => {
+  queryParams.page = 1;
+  fetchData();
+};
+
+const resetQuery = () => {
+  queryParams.filter = '';
+  queryParams.departmentId = null;
+  handleQuery();
+};
+
+const handleSizeChange = (val: number) => {
+  queryParams.size = val;
+  handleQuery();
 };
 
 const translateListToTree = (list: any[]) => {
@@ -211,34 +225,15 @@ const initDictData = async () => {
   }
 };
 
-const handleImport = async (options: any) => {
-  try {
-    const res: any = await importUsersApi(options.file);
-    if (res.type && res.type.includes('spreadsheetml.sheet')) {
-      const url = window.URL.createObjectURL(new Blob([res]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', '导入失败人员名单.xlsx');
-      document.body.appendChild(link);
-      link.click();
-      
-      ElMessage.warning('存在导入失败的数据，已为您下载失败明细Excel！');
-    } else {
-      ElMessage.success('全部数据导入成功！');
-    }
-    
-    fetchData(); 
-  } catch (error) {
-    ElMessage.error('文件导入失败，请检查网络或模板格式');
-  }
-};
-
 const fetchData = async () => {
   loading.value = true;
   try {
+    // 将查询参数转换为后端需要的命名规范（支持 ABP 框架标准的 Filter 和 DepartmentId）
     const res = await getUserList({
       SkipCount: (queryParams.page - 1) * queryParams.size,
-      MaxResultCount: queryParams.size
+      MaxResultCount: queryParams.size,
+      Filter: queryParams.filter || undefined,
+      DepartmentId: queryParams.departmentId || undefined
     });
     tableData.value = res.items;
     total.value = res.totalCount;
@@ -276,7 +271,7 @@ const handleEdit = (row: any) => {
 };
 
 const handleDelete = (row: any) => {
-ElMessageBox.confirm(`确定要将用户【${row.name}】删除吗？`, '安全警告', {
+  ElMessageBox.confirm(`确定要将用户【${row.name}】删除吗？`, '安全警告', {
     confirmButtonText: '确定删除',
     cancelButtonText: '取消',
     type: 'warning'
@@ -284,16 +279,13 @@ ElMessageBox.confirm(`确定要将用户【${row.name}】删除吗？`, '安全�
     try {
       await deleteUser(row.id);
       ElMessage.success('删除成功！');
-      dialog.visible = false;
       fetchData();
     } catch (error) {
       ElMessage.error('删除失败');
     }
   }).catch(() => {});
-
 };
 
-// ⭐ 新增：重置密码逻辑
 const handleResetPwd = (row: any) => {
   ElMessageBox.confirm(`确定要将用户【${row.name}】的密码重置为初始密码吗？`, '安全警告', {
     confirmButtonText: '确定重置',
@@ -339,7 +331,7 @@ const submitForm = async () => {
 
 const resetForm = () => {
   form.id = '';
-  form.password = 'SCjg.123000'; // 重新重置为默认密码
+  form.password = 'SCjg.123000';
   formRef.value?.resetFields();
 };
 

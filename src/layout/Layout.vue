@@ -57,6 +57,10 @@
               <el-icon><Avatar /></el-icon>
               项目角色
             </el-menu-item>
+            <el-menu-item index="/productseries" v-if="hasPermission('SC_LaborReporting.ProductSeries')">
+              <el-icon><Box /></el-icon>
+              产品系列维护
+            </el-menu-item>
         </el-sub-menu>
 
         <el-menu-item index="/laborReport" v-if="hasPermission('SC_LaborReporting.LaborReport')">
@@ -64,7 +68,7 @@
           <span>工时填报</span>
         </el-menu-item>
 
-        <el-menu-item index="/approval" v-if="hasPermission('SC_LaborReporting.LaborReport')">
+        <el-menu-item index="/approval" v-if="hasPermission('SC_LaborReporting.LaborReportApproval')">
           <el-icon><Timer /></el-icon>
           <span>工时审批</span>
         </el-menu-item>

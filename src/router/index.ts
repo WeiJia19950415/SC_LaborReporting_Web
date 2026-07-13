@@ -63,6 +63,12 @@ const routes = [
         meta: { title: '项目管理', icon: 'Memo' } 
       },
       {
+        path: 'productseries',
+        name: 'productseries',
+        component: () => import('../views/productSeries/index.vue'),
+        meta: { title: '产品系列维护' }
+      },
+      {
         path: 'laborReport', 
         name: 'LaborReport',
         component: () => import('../views/laborReport/index.vue'),
