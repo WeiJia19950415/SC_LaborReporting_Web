@@ -41,11 +41,11 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="projectCode" label="项目工号" width="120" show-overflow-tooltip />
+      <el-table-column prop="projectCode" label="项目编号" width="100" show-overflow-tooltip />
       <el-table-column prop="projectName" label="项目名称" min-width="150" show-overflow-tooltip />
-      <el-table-column prop="projectRoleName" label="项目角色" width="120" show-overflow-tooltip />
+      <el-table-column prop="projectRoleName" label="项目角色" width="100" show-overflow-tooltip />
       
-      <el-table-column label="产品系列" min-width="160">
+      <el-table-column label="产品系列" min-width="120">
         <template #default="{ row }">
           <el-select 
             v-model="row.productSeriesId" 
@@ -64,24 +64,24 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="任务分类 (必填)" min-width="180">
+      <el-table-column label="任务分类 (必填)" min-width="240">
         <template #default="{ row }">
           <el-select v-model="row.laborCategoryId" placeholder="请选择任务" style="width: 100%" :disabled="row.status !== -1" @change="(val) => handleTaskChange(row, val)">
             <el-option v-for="cat in row.availableTasks" :key="cat.id" :label="cat.fullName" :value="cat.id" />
           </el-select>
         </template>
       </el-table-column>
-      <el-table-column label="简述工作内容" min-width="200">
+      <el-table-column label="简述工作内容" min-width="240">
         <template #default="{ row }">
           <el-input v-model="row.jobresponsibilities" type="textarea" :rows="5" placeholder="请输入工作内容" :disabled="row.status !== -1" />
         </template>
       </el-table-column>
-      <el-table-column label="发生工时" width="130" align="center">
+      <el-table-column label="发生工时" width="110" align="center">
         <template #default="{ row }">
           <el-input-number v-model="row.hours" :min="0.5" :step="0.5" step-strictly style="width: 100px;" controls-position="right" :disabled="row.status !== -1" />
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="100" align="center">
+      <el-table-column label="状态" width="80" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.status === 0" type="warning">审批中</el-tag>
           <el-tag v-else-if="row.status === 3" type="success">已通过</el-tag>
@@ -213,7 +213,6 @@ const resetForm = () => {
 const onRoleChange = () => {}
 
 const addRow = async () => {
-  if (!form.projectRoleId) return ElMessage.warning('请先选择项目角色')
   if (form.laborClass === 1 && !form.projectId) return ElMessage.warning('项目工时必须选择关联项目')
 
   const selectedRole = projectRoles.value.find(r => r.id === form.projectRoleId)

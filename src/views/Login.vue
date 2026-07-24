@@ -22,11 +22,11 @@
             </el-button>
           </el-form-item>
         </el-form>
-        <div class="login-type-switch">
+        <!-- <div class="login-type-switch">
           <el-button type="primary" link @click="switchLoginType('wecom')">
             <el-icon style="margin-right: 4px;"><ChatDotSquare /></el-icon>使用企业微信登录
           </el-button>
-        </div>
+        </div> -->
       </div>
 
       <div v-show="loginType === 'wecom'" class="wecom-login-wrapper">

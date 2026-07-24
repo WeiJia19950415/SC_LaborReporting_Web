@@ -3,6 +3,8 @@
     <el-card shadow="never">
       <div class="header-actions" style="margin-bottom: 20px;">
         <el-button type="primary" icon="Plus" @click="openDialog('addRoot')">新增顶级分类</el-button>
+        <el-button type="success" icon="Upload" @click="triggerImport" :loading="importLoading">导入Excel</el-button>
+        <input type="file" ref="fileInput" accept=".xlsx, .xls, .csv" style="display: none" @change="handleFileUpload" />
       </div>
 
       <el-table
@@ -13,7 +15,7 @@
         v-loading="loading"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
-        <el-table-column label="工时类型" width="100" align="center">
+        <el-table-column label="工时类型" width="60" align="center">
           <template #default="{ row }">
             <el-tag :type="row.laborType === 1 ? 'primary' : 'success'">
               {{ row.laborType === 1 ? '研发' : '生产' }}
@@ -21,7 +23,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="工时类别" width="100" align="center">
+        <el-table-column label="工时类别" width="60" align="center">
           <template #default="{ row }">
             <el-tag :type="row.laborClass === 1 ? 'warning' : 'info'">
               {{ row.laborClass === 1 ? '项目' : '其他' }}
@@ -33,7 +35,7 @@
           v-for="level in maxDepth" 
           :key="level" 
           :label="level === 1 ? '1级分类' : level === 2 ? '2级分类' : `${level}级分类`" 
-          min-width="70"
+          min-width="120"
         >
           <template #default="{ row }">
             <span v-if="row.level === level" style="font-weight: bold;">{{ row.name }}</span>
@@ -42,13 +44,13 @@
 
         <el-table-column prop="code" label="排序号" width="130" />
 
-        <el-table-column label="适用部门(全称)" min-width="160" show-overflow-tooltip>
+        <el-table-column label="适用部门(全称)" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.departmentFullNames?.join('，') || '-' }}
           </template>
         </el-table-column>
         
-        <el-table-column label="适用项目角色" min-width="150" show-overflow-tooltip>
+        <el-table-column label="适用项目角色" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
             {{ getProjectRoleNames(row.projectRoleIds) }}
           </template>
@@ -143,14 +145,16 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
-import { getLaborCategoryList, createLaborCategory, updateLaborCategory, deleteLaborCategory } from '../../api/laborCategory';
+import { getLaborCategoryList, createLaborCategory, updateLaborCategory, deleteLaborCategory,importLaborCategories } from '../../api/laborCategory';
 import { getDepartmentList } from '../../api/department'; 
 import { getProjectRoles } from '../../api/projectRole';
+import * as XLSX from 'xlsx';
 
 const treeData = ref<any[]>([]);
 const maxDepth = ref(1);
 const loading = ref(false);
-
+const importLoading = ref(false);
+const fileInput = ref<HTMLInputElement | null>(null);
 const dialogVisible = ref(false);
 const dialogTitle = ref('');
 const submitLoading = ref(false);
@@ -160,6 +164,61 @@ const deptOptions = ref<any[]>([]);
 const projectRoleList = ref<any[]>([]); // 替换旧的 roleOptions
 const categoryOptions = ref<any[]>([]); 
 
+
+const triggerImport = () => {
+  fileInput.value?.click();
+};
+
+const handleFileUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' }) as any[];
+
+      // 映射表头到后端的 DTO 字段
+      const importList = jsonData.map(row => ({
+        laborType: row['工时类型'] || '',
+        laborClass: row['工时类别'] || '',
+        level1: row['1级分类'] || '',
+        level2: row['2级分类'] || '',
+        level3: row['3级分类'] || '',
+        level4: row['4级分类'] || '',
+        departments: row['适用部门'] || '',
+        projectRoles: row['适用角色'] || '',
+        remark: row['工作详细说明'] || ''
+      })).filter(x => x.laborType || x.level1 || x.level2 || x.level3 || x.level4); // 过滤彻底的空行
+
+      if (importList.length === 0) {
+        ElMessage.warning('没有读取到有效的数据');
+        return;
+      }
+
+      importLoading.value = true;
+      // 调用后端解析好的 API 节点
+      await importLaborCategories(importList);
+      ElMessage.success('导入成功');
+      
+      // 刷新列表数据
+      fetchData();
+    } catch (error) {
+      console.error('解析或导入失败', error);
+      ElMessage.error('导入失败，请检查文件格式或重试');
+    } finally {
+      importLoading.value = false;
+      // 重置 input 以支持连续上传相同文件
+      if (fileInput.value) fileInput.value.value = ''; 
+    }
+  };
+  reader.readAsArrayBuffer(file);
+};
 // 修改表单结构，加入 projectRoleIds
 const form = reactive({
   id: '',

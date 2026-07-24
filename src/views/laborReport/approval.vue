@@ -282,22 +282,20 @@ const submitApproval = async (isApproved: boolean) => {
 
   loading.value = true;
   try {
-    await Promise.all(
-      currentProcessList.value.map(item =>
-        approveLaborReport({
-          reportId: item.reportId,
-          detailId: item.detailId,
-          isApproved: isApproved,
-          comment: finalComment
-        })
-      )
-    );
+    for (const item of currentProcessList.value) {
+      await approveLaborReport({
+        reportId: item.reportId,
+        detailId: item.detailId,
+        isApproved: isApproved,
+        comment: finalComment
+      });
+    }
     
     ElMessage.success(`处理完成，成功审批 ${currentProcessList.value.length} 条记录`);
     dialogVisible.value = false;
     getList();
   } catch (error) {
-    ElMessage.error('服务器外部故障，审批更新未成功');
+    ElMessage.error('批量处理中途出现异常，部分审批可能未成功');
   } finally {
     loading.value = false;
   }
