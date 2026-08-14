@@ -141,12 +141,10 @@ export function approveLaborReport(data: { reportId: string; detailId: string; i
 
 // 3. 获取用户列表
 export function getUserList() {
-  return request({
-    url: '/api/identity/users',
-    method: 'get',
-    // 默认自带分页，我们通过 maxResultCount 尽量拉取全量用于本地字典映射
-    params: { maxResultCount: 1000 } 
-  });
+return request({
+    url: '/api/app/user-lookup', // 指向我们刚刚自己写的新接口
+    method: 'get'
+  })
 }
 
 // 4. 获取所有项目列表（用于关联项目下拉框）
@@ -162,5 +160,56 @@ export function getDepartmentList() {
   return request({
     url: '/api/app/department',
     method: 'get'
+  });
+}
+
+export function getApprovalRecords(id: string) {
+  return request({
+    url: `/api/app/labor-report/${id}/approval-records`,
+    method: 'get',
+  });
+}
+
+// 获取审批历史记录
+export function getApprovalHistory(params: any) {
+  return request({
+    url: '/api/app/labor-report/approval-history', // 根据你后端的实际路由修改
+    method: 'get',
+    params
+  })
+}
+
+export function withdrawLaborDetail(detailId: string) {
+  return request({
+    url: `/api/app/labor-report/withdraw/${detailId}`, 
+    method: 'post'
+  });
+}
+
+/**
+ * 删除一条(退回或撤回状态的)报工明细
+ * 对应后端: Task DeleteDetailAsync(Guid reportId, Guid detailId)
+ */
+export function deleteLaborDetail(detailId: string) {
+  return request({
+    // 使用反引号拼接 detailId 到 URL 路径中
+    url: `/api/app/labor-report/detail/${detailId}`, 
+    method: 'delete' 
+  });
+}
+
+/**
+ * 修改一条(退回或撤回状态的)报工明细
+ * 对应后端: Task UpdateDetailAsync(Guid reportId, Guid detailId, UpdateLaborReportDetailDto input)
+ */
+export function updateLaborDetail(reportId: string, detailId: string, data: UpdateLaborReportDetailDto) {
+  return request({
+    url: '/api/app/labor-report/detail',
+    method: 'put',
+    params: { 
+      reportId: reportId, 
+      detailId: detailId 
+    },
+    data: data // 复杂对象放在 body 中
   });
 }

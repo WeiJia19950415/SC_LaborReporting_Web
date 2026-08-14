@@ -66,3 +66,10 @@ export const getUsersApi = (params?: any) => {
     params: params || { maxResultCount: 1000 } // 默认拉取最多1000条用于下拉框
   });
 };
+
+export function getApplicationConfiguration() {
+  return request({
+    url: '/api/abp/application-configuration',
+    method: 'get'
+  });
+}

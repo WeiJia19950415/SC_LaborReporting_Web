@@ -9,3 +9,10 @@ export const getSystemConfigApi = () => {
 export const updateSystemConfigApi = (data: any) => {
   return request.put('/api/app/system-config/config', data);
 };
+
+export function getApplicationConfiguration() {
+  return request({
+    url: '/api/abp/application-configuration',
+    method: 'get'
+  });
+}

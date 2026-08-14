@@ -52,6 +52,8 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <!-- 新增历史记录按钮 -->
+        <el-button type="info" plain icon="Clock" @click="handleOpenHistory">历史记录</el-button>
       </el-form-item>
     </el-form>
 
@@ -88,8 +90,8 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="关联项目" align="center" prop="projectName" min-width="150" />
-      <el-table-column label="工时类型" align="center" prop="laborCategoryCode" width="120" />
+      <el-table-column label="关联项目" align="center" prop="projectName" min-width="100" />
+      <el-table-column label="工时类型" align="center" prop="laborCategoryName" min-width="120" />
       
       <el-table-column label="填报工时" align="center" prop="hours" width="100">
         <template #default="scope">
@@ -97,7 +99,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="工作内容" align="left" prop="jobresponsibilities" show-overflow-tooltip />
+      <el-table-column label="工作内容" align="left" prop="jobresponsibilities" show-overflow-tooltip min-width="180" />
       
       <el-table-column label="操作" align="center" width="100" fixed="right">
         <template #default="scope">
@@ -129,6 +131,82 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 【新增】审批历史记录弹窗 -->
+    <el-dialog title="我的审批历史记录" v-model="historyVisible" width="1100px" append-to-body>
+      <!-- 历史记录专用搜索栏 -->
+      <el-form :model="historyQueryParams" :inline="true" class="mb8" style="margin-bottom: 15px;">
+        <el-form-item label="填报人">
+          <el-select v-model="historyQueryParams.reporterId" placeholder="选择填报人" filterable clearable style="width: 150px">
+            <el-option v-for="user in userOptions" :key="user.id" :label="user.name || user.userName" :value="user.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="部门">
+          <el-tree-select
+            v-model="historyQueryParams.departmentId"
+            :data="departmentOptions"
+            node-key="id"
+            :props="{ label: 'displayName', children: 'children' }"
+            placeholder="选择部门"
+            clearable
+            check-strictly
+            style="width: 180px"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="Search" @click="getHistoryList">查询</el-button>
+          <el-button icon="Refresh" @click="resetHistoryQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <!-- 历史记录表格 -->
+      <el-table v-loading="historyLoading" :data="historyList" border stripe max-height="500">
+        <el-table-column label="审批时间" align="center" prop="approvalTime" width="160">
+          <template #default="scope">
+            <span>{{ parseTime(scope.row.approvalTime, '{y}-{m}-{d} {h}:{i}') }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="填报人" align="center" width="100">
+          <template #default="scope">
+            <span>{{ getUserName(scope.row.reporterId) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="所属部门" align="center" width="120">
+          <template #default="scope">
+            <span>{{ getDepartmentName(scope.row.departmentId) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="项目/任务" align="center" min-width="180">
+          <template #default="scope">
+            <div>{{ scope.row.projectName }}</div>
+            <div style="font-size: 12px; color: #999">{{ scope.row.laborCategoryCode }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="工时" align="center" prop="hours" width="80" />
+        <el-table-column label="审批结果" align="center" width="100">
+          <template #default="scope">
+            <!-- 1为已通过，2和3为不同意/退回。具体数字可根据后端枚举值微调 -->
+            <el-tag v-if="scope.row.status === 1" type="success">已通过</el-tag>
+            <el-tag v-else-if="scope.row.status === 2 || scope.row.status === 3" type="danger">已驳回</el-tag>
+            <el-tag v-else type="info">未知状态</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="审批意见" align="left" prop="approvalComment" show-overflow-tooltip />
+      </el-table>
+
+      <!-- 历史记录分页 -->
+      <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+        <el-pagination
+          v-model:current-page="historyPagination.currentPage"
+          v-model:page-size="historyPagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="historyTotal"
+          @size-change="handleHistorySizeChange"
+          @current-change="handleHistoryCurrentChange"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -140,10 +218,11 @@ import {
   approveLaborReport, 
   getUserList, 
   getProjectList, 
-  getDepartmentList 
+  getDepartmentList,
+  getApprovalHistory // 【新增】引入历史记录API，需在 api 文件中添加该方法
 } from '../../api/laborReport';
 
-// 基础变量定义
+// ----- 基础变量定义 -----
 const loading = ref(true);
 const showSearch = ref(true);
 const ids = ref<any[]>([]);
@@ -171,13 +250,29 @@ const queryParams = reactive({
   projectId: undefined
 });
 
-// 加载事件流
+// ----- 【新增】历史记录相关变量 -----
+const historyVisible = ref(false);
+const historyLoading = ref(false);
+const historyList = ref<any[]>([]);
+const historyTotal = ref(0);
+
+const historyPagination = reactive({
+  currentPage: 1,
+  pageSize: 10
+});
+
+const historyQueryParams = reactive({
+  reporterId: undefined,
+  departmentId: undefined
+});
+
+// ----- 加载事件流 -----
 onMounted(async () => {
   await loadSearchOptions();
   getList();
 });
 
-// 并发拉取并缓存基础下拉数据源
+// ----- 基础数据加载与处理 -----
 const loadSearchOptions = async () => {
   try {
     const [usersRes, projsRes, deptsRes] = await Promise.all([
@@ -206,7 +301,6 @@ const loadSearchOptions = async () => {
   }
 };
 
-// 树结构递归转换器
 const buildFileTree = (list: any[]): any[] => {
   const map: { [key: string]: any } = {};
   const tree: any[] = [];
@@ -226,7 +320,7 @@ const buildFileTree = (list: any[]): any[] => {
 const getUserName = (userId: string) => userMap.get(userId) || userId;
 const getDepartmentName = (deptId: string) => deptMap.get(deptId) || deptId;
 
-// 待审批核心主查询
+// ----- 待审批主列表方法 -----
 const getList = async () => {
   loading.value = true;
   try {
@@ -301,13 +395,69 @@ const submitApproval = async (isApproved: boolean) => {
   }
 };
 
+// ----- 【新增】历史记录方法 -----
+const handleOpenHistory = () => {
+  historyVisible.value = true;
+  resetHistoryQuery();
+};
+
+const getHistoryList = async () => {
+  historyLoading.value = true;
+  try {
+    // 转换为 ABP 默认的分页参数格式 (SkipCount 和 MaxResultCount)
+    const payload = {
+      reporterId: historyQueryParams.reporterId,
+      departmentId: historyQueryParams.departmentId,
+      MaxResultCount: historyPagination.pageSize,
+      SkipCount: (historyPagination.currentPage - 1) * historyPagination.pageSize
+    };
+    
+    const res = await getApprovalHistory(payload);
+    historyList.value = res.items || [];
+    historyTotal.value = res.totalCount || 0;
+  } catch (error) {
+    console.error("历史记录加载失败：", error);
+    ElMessage.error("获取审批历史失败");
+  } finally {
+    historyLoading.value = false;
+  }
+};
+
+const resetHistoryQuery = () => {
+  historyQueryParams.reporterId = undefined;
+  historyQueryParams.departmentId = undefined;
+  historyPagination.currentPage = 1;
+  getHistoryList();
+};
+
+const handleHistorySizeChange = (val: number) => {
+  historyPagination.pageSize = val;
+  historyPagination.currentPage = 1;
+  getHistoryList();
+};
+
+const handleHistoryCurrentChange = (val: number) => {
+  historyPagination.currentPage = val;
+  getHistoryList();
+};
+
+// ----- 共有工具方法 -----
 const parseTime = (time: string, pattern: string) => {
   if (!time) return '';
   const date = new Date(time);
   const year = date.getFullYear();
   const month = ('0' + (date.getMonth() + 1)).slice(-2);
   const day = ('0' + date.getDate()).slice(-2);
-  return pattern.replace('{y}', String(year)).replace('{m}', month).replace('{d}', day);
+  const hours = ('0' + date.getHours()).slice(-2);
+  const minutes = ('0' + date.getMinutes()).slice(-2);
+  const seconds = ('0' + date.getSeconds()).slice(-2);
+  return pattern
+    .replace('{y}', String(year))
+    .replace('{m}', month)
+    .replace('{d}', day)
+    .replace('{h}', hours)
+    .replace('{i}', minutes)
+    .replace('{s}', seconds);
 };
 </script>
 

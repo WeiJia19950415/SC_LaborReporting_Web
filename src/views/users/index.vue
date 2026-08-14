@@ -76,26 +76,43 @@
 
     <el-dialog :title="dialog.title" v-model="dialog.visible" width="550px" @close="resetForm">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
-        <el-form-item label="用户名" prop="userName">
+        
+        <!-- 将工号提至前面，因为用户名依赖于它 -->
+        <el-form-item label="工号" prop="jobNumber">
           <el-input 
-            v-model="form.userName" 
-            placeholder="请输入工号作为用户名" 
+            v-model="form.jobNumber" 
+            placeholder="请输入工号" 
             :disabled="isEdit" 
-            @input="handleUserNameInput"
+            @input="handleJobNumberInput"
           />
         </el-form-item>
+        
+        <el-form-item label="用户名" prop="userName">
+          <!-- 用户名始终不可编辑，它与工号同步 -->
+          <el-input 
+            v-model="form.userName" 
+            placeholder="与工号自动同步" 
+            disabled 
+          />
+        </el-form-item>
+
         <el-form-item label="姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入姓名" :disabled="isEdit" />
         </el-form-item>
+
         <el-form-item label="电话" prop="phoneNumber">
-          <el-input v-model="form.phoneNumber" placeholder="与用户名自动同步" disabled />
+          <el-input 
+            v-model="form.phoneNumber" 
+            placeholder="请输入手机号" 
+            :disabled="isEdit" 
+          />
         </el-form-item>
-        <el-form-item label="工号" prop="jobNumber">
-          <el-input v-model="form.jobNumber" placeholder="请输入工号" :disabled="isEdit" />
-        </el-form-item>
+
         <el-form-item v-if="!isEdit" label="初始密码" prop="password">
           <el-input v-model="form.password" type="password" disabled />
         </el-form-item>
+
+        <!-- 以下字段在新增和编辑状态下均可操作 -->
         <el-form-item label="所属部门" prop="departmentId">
           <el-tree-select
             v-model="form.departmentId"
@@ -107,14 +124,17 @@
             clearable 
           />
         </el-form-item>
+
         <el-form-item label="角色" prop="roleNames">
           <el-select v-model="form.roleNames" multiple placeholder="请选择角色" style="width: 100%;">
             <el-option v-for="role in roleOptions" :key="role.name" :label="role.name" :value="role.name" />
           </el-select>
         </el-form-item>
+
         <el-form-item label="状态" prop="isActive">
           <el-switch v-model="form.isActive" active-text="启用" inactive-text="禁用" />
         </el-form-item>
+
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -136,7 +156,7 @@ const tableData = ref([]);
 const loading = ref(false);
 const total = ref(0);
 
-// 默认 20 行，添加模糊查询字段 filter 和部门筛选字段 departmentId
+// 默认 15 行，添加模糊查询字段 filter 和部门筛选字段 departmentId
 const queryParams = reactive({ 
   page: 1, 
   size: 15,
@@ -164,18 +184,30 @@ const form = reactive({
 
 const isEdit = computed(() => !!form.id);
 
+// 自定义手机号验证规则
+const validatePhone = (rule: any, value: any, callback: any) => {
+  if (!value) {
+    callback(new Error('电话不能为空'));
+  } else if (!/^1[3-9]\d{9}$/.test(value)) {
+    callback(new Error('请输入正确的11位手机号码'));
+  } else {
+    callback();
+  }
+};
+
 const rules = reactive({
   userName: [{ required: true, message: '用户名不能为空', trigger: 'blur' }],
   name: [{ required: true, message: '姓名不能为空', trigger: 'blur' }],
   jobNumber: [{ required: true, message: '工号不能为空', trigger: 'blur' }],
-  phoneNumber: [{ required: true, message: '电话不能为空', trigger: 'blur' }] ,
+  phoneNumber: [{ required: true, validator: validatePhone, trigger: 'blur' }] ,
   departmentId: [{ required: true, message: '请选择所属部门', trigger: 'change' }],
   roleNames: [{ required: true, message: '请选择至少一个角色', trigger: 'change' }]
 });
 
-const handleUserNameInput = (val: string) => {
+// 处理工号输入，同步到用户名
+const handleJobNumberInput = (val: string) => {
   if (!isEdit.value) {
-    form.phoneNumber = val;
+    form.userName = val;
   }
 };
 
@@ -228,7 +260,6 @@ const initDictData = async () => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    // 将查询参数转换为后端需要的命名规范（支持 ABP 框架标准的 Filter 和 DepartmentId）
     const res = await getUserList({
       SkipCount: (queryParams.page - 1) * queryParams.size,
       MaxResultCount: queryParams.size,
@@ -251,7 +282,7 @@ const handleCreate = () => {
   form.userName = "";
   form.name = "";
   form.phoneNumber = "";
-  form.departmentId = "";
+  form.departmentId = null;
   form.jobNumber = "";
   form.roleNames = [];
   form.isActive = true;
@@ -308,6 +339,7 @@ const submitForm = async () => {
       submitLoading.value = true;
       try {
         if (isEdit.value) {
+          // 修改时只提交后台允许修改的字段（根据要求仅部门、角色以及状态）
           await updateUser(form.id, {
             isActive: form.isActive,
             departmentId: form.departmentId,

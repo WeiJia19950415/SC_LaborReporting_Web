@@ -39,7 +39,7 @@
           <el-input v-model="formData.name" placeholder="请输入项目名称" />
         </el-form-item>
         <el-form-item label="负责人" prop="managerId">
-          <el-select v-model="formData.managerId" placeholder="请选择项目负责人" style="width: 100%">
+          <el-select v-model="formData.managerId" filterable clearable  placeholder="请选择项目负责人" style="width: 100%">
             <el-option
               v-for="user in userList"
               :key="user.id"

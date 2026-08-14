@@ -103,10 +103,10 @@
 
     <el-container class="main-container">
       <el-header class="app-header">
-        <div class="header-breadcrumb">欢迎使用思创激光报工系统</div>
+        <div class="header-breadcrumb">欢迎 {{ userStore.userInfo.name }} 使用思创激光报工系统</div>
       </el-header>
       
-      <el-main class="app-main">
+      <el-main class="app-main">  
         <router-view />
       </el-main>
       

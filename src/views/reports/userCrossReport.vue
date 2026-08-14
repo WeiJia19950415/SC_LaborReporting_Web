@@ -22,7 +22,7 @@
               v-model="queryParams.departmentId" 
               placeholder="选择部门" 
               clearable 
-              style="width: 150px"
+              style="width: 130px"
               @change="fetchData"
             >
               <el-option v-for="dept in deptList" :key="dept.id" :label="dept.fullName" :value="dept.id" />
@@ -33,11 +33,23 @@
               placeholder="搜索人员" 
               clearable 
               filterable 
-              style="width: 150px"
+              style="width: 130px"
               @change="fetchData"
             >
               <el-option v-for="user in userList" :key="user.id" :label="user.name" :value="user.id" />
             </el-select>
+
+            <!-- ================= 【新增】审批状态选择器 ================= -->
+            <el-select 
+              v-model="queryParams.status" 
+              placeholder="审批状态"
+              style="width: 130px"
+              @change="fetchData"
+            >
+              <el-option label="已审批" :value="3" />
+              <el-option label="包含未审批" :value="-1" />
+            </el-select>
+            <!-- ========================================================= -->
 
             <el-button type="primary" icon="Search" @click="fetchData">查询</el-button>
             <el-button icon="Download" @click="exportData">导出</el-button>
@@ -45,12 +57,14 @@
         </div>
       </template>
 
+      <!-- 💡 修改点 1: 增加 :key="tableKey" 强制 Element 刷新动态列 -->
       <el-table 
+        :key="tableKey"
         v-loading="loading" 
         :data="tableData" 
         border
         style="width: 100%"
-        height="600"
+        height="850"
       >
         <el-table-column prop="userName" label="人员名称" width="120" fixed="left" align="center" />
         <el-table-column prop="totalSum" label="期间总计" width="100" fixed="left" align="center">
@@ -64,9 +78,10 @@
           :key="dateItem.date" 
           :label="dateItem.date.substring(5)" align="center"
         >
+          <!-- 💡 修改点 2: 确保此处的 key 在全局唯一 -->
           <el-table-column
             v-for="proj in dateItem.projects"
-            :key="proj.id"
+            :key="`${dateItem.date}_${proj.id}`"
             :prop="`${dateItem.date}_${proj.id}`"
             :label="proj.name"
             width="100"
@@ -111,7 +126,10 @@ const isFinance = computed(() => route.meta.isFinance === true);
 
 const loading = ref(false);
 const dateRange = ref<[string, string]>(['', '']);
-const queryParams = ref({ departmentId: '', userId: '' });
+
+// ================= 【新增】参数中增加 status，默认值为 3 (已审批) =================
+const queryParams = ref({ departmentId: '', userId: '', status: 3 });
+// =================================================================================
 
 const deptList = ref<any[]>([]);
 const userList = ref<any[]>([]);
@@ -119,6 +137,9 @@ const userList = ref<any[]>([]);
 // 构建表格使用的结构
 const dateColumns = ref<{ date: string, projects: {id: string, name: string}[] }[]>([]);
 const tableData = ref<any[]>([]);
+
+// 💡 修改点 3: 用于强制重绘表格的唯一 Key
+const tableKey = ref(Date.now());
 
 // 1. 初始化默认时间：上月配置起点 ～ 当月配置截至点
 const calculateDefaultDates = () => {
@@ -198,10 +219,17 @@ const fetchData = async () => {
       startDate: dateRange.value[0],
       endDate: dateRange.value[1],
       departmentId: queryParams.value.departmentId || null,
-      userId: queryParams.value.userId || null
+      userId: queryParams.value.userId || null,
+      // ================= 【新增】将 status 传递给后端 =================
+      status: queryParams.value.status 
+      // ==============================================================
     });
     
     buildMatrixData(res || []);
+    
+    // 💡 修改点 4: 数据构建完成后，更新 tableKey 强制表格重新渲染
+    tableKey.value = Date.now();
+    
   } catch (error) {
     ElMessage.error('拉取报表数据失败');
   } finally {

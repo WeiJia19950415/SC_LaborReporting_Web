@@ -57,8 +57,49 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="审批过程" width="120" align="center">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="handleViewApproval(row)">
+              查看审批
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </div>
+  </el-dialog>
+
+  <!-- 审批过程弹窗 -->
+  <el-dialog v-model="approvalModalVisible" title="审批过程" width="500px" destroy-on-close>
+    <el-timeline style="padding-top: 20px;">
+      <el-timeline-item
+        v-for="(activity, index) in approvalRecords"
+        :key="index"
+        :timestamp="activity.creationTime"
+        :type="activity.approvalStatus === '审批通过' ? 'success' : (activity.approvalStatus === '审批不通过' ? 'danger' : 'primary')"
+      >
+        <div style="margin-bottom: 5px;">
+          <strong>节点：</strong>{{ activity.approvalNode }}
+        </div>
+        <div style="margin-bottom: 5px;">
+          <strong>状态：</strong>
+          <el-tag :type="activity.approvalStatus === '审批通过' ? 'success' : 'danger'" size="small">
+            {{ activity.approvalStatus }}
+          </el-tag>
+        </div>
+        <div style="margin-bottom: 5px;">
+          <strong>审批人：</strong>{{ activity.approverName }}
+        </div>
+        <div v-if="activity.approvalContent">
+          <strong>意见：</strong>{{ activity.approvalContent }}
+        </div>
+      </el-timeline-item>
+    </el-timeline>
+    
+    <el-empty v-if="!approvalRecords || approvalRecords.length === 0" description="暂无审批记录" />
+    
+    <template #footer>
+      <el-button @click="approvalModalVisible = false">关闭</el-button>
+    </template>
   </el-dialog>
 </template>
 
@@ -66,10 +107,13 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMonthlySummary } from '../../api/report'
+import { getApprovalRecords } from '../../api/laborReport';
 
 const visible = ref(false)
 const loading = ref(false)
+const approvalModalVisible = ref(false);
 const dateRange = ref<[string, string]>(['', ''])
+const approvalRecords = ref([]);
 const filterType = ref<'All' | 'Approved' | 'Pending'>('All')
 
 const summaryData = ref({
@@ -182,7 +226,17 @@ const getStatusType = (status: number) => {
     default: return ''
   }
 }
-
+const handleViewApproval = async (row: any) => {
+  try {
+    console.log('当前点击的行数据：', row);
+    // 假设 row.id 是需要查询的主键
+    const res = await getApprovalRecords(row.detailId);
+    approvalRecords.value = res; // 赋值给时间轴数据
+    approvalModalVisible.value = true; // 打开弹窗
+  } catch (error) {
+    console.error('获取审批过程失败', error);
+  }
+};
 defineExpose({ open })
 </script>
 
