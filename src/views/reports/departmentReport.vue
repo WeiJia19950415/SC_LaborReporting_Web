@@ -14,6 +14,16 @@
             style="width: 320px;"
           />
         </el-form-item>
+        <el-form-item label="所属部门">
+          <el-select 
+              v-model="queryParams.departmentId" 
+              placeholder="选择部门" 
+              clearable 
+              style="width: 130px"
+            >
+              <el-option v-for="dept in deptList" :key="dept.id" :label="dept.fullName" :value="dept.id" />
+            </el-select>
+        </el-form-item>
         <el-form-item label="审批状态">
           <el-select v-model="queryParams.includeUnapproved" style="width: 160px;">
             <el-option label="已审批" :value="false" />
@@ -46,6 +56,7 @@
         <el-table-column prop="projectRoleName" label="项目角色" width="120" />
         <el-table-column prop="reporterName" label="填报人" width="100" />
         <el-table-column prop="departmentFullName" label="填报人所在部门全称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="subTime" label="提交时间" width="100" />
         <el-table-column prop="laborCategoryFullName" label="任务分类" min-width="200" show-overflow-tooltip />
         <el-table-column prop="jobresponsibilities" label="工作描述" min-width="250" show-overflow-tooltip />
         <el-table-column prop="hours" label="申报工时" width="90" align="center" />
@@ -77,10 +88,12 @@ import { ref, reactive, onMounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getDepartmentChart, getDepartmentTable, exportDepartmentTable } from '../../api/report'
 import { ElMessage } from 'element-plus'
+import { getDepartmentsApi } from '../../api/department';
 
 const dateRange = ref<[string, string]>(['', ''])
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
+const deptList = ref<any[]>([]);
 
 const queryParams = reactive({
   startDate: '',
@@ -89,6 +102,7 @@ const queryParams = reactive({
   projectId: null as string | null,
   filterByProject: false,
   laborCategoryId: null as string | null,
+  departmentId: null as string | null,
   skipCount: 1,
   maxResultCount: 10
 })
@@ -98,6 +112,11 @@ const tableData = ref<any[]>([])
 const totalCount = ref(0)
 const tableLoading = ref(false)
 const exportLoading = ref(false)
+
+const loadFilters = async () => {
+  const deptRes: any = await getDepartmentsApi();
+  deptList.value = deptRes.items || [];
+};
 
 const initDate = () => {
   const now = new Date()
@@ -113,7 +132,8 @@ const getApiParams = () => {
     includeUnapproved: queryParams.includeUnapproved,
     projectId: queryParams.projectId,
     filterByProject: queryParams.filterByProject,
-    laborCategoryId: queryParams.laborCategoryId
+    laborCategoryId: queryParams.laborCategoryId,
+    departmentId: queryParams.departmentId
   }
 }
 
@@ -232,6 +252,7 @@ const handleExport = async () => {
 }
 
 onMounted(() => {
+  loadFilters();
   initDate()
   nextTick(() => {
     handleSearch()

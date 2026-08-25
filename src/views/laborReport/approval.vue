@@ -91,8 +91,8 @@
       </el-table-column>
 
       <el-table-column label="关联项目" align="center" prop="projectName" min-width="100" />
-      <el-table-column label="工时类型" align="center" prop="laborCategoryName" min-width="120" />
-      
+      <el-table-column label="工时类型" align="center" prop="laborCategoryName" min-width="100" />
+      <el-table-column label="产品系列" align="center" prop="productSeriesName" min-width="120" />
       <el-table-column label="填报工时" align="center" prop="hours" width="100">
         <template #default="scope">
           <el-tag type="info">{{ scope.row.hours }} 小时</el-tag>

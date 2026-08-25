@@ -7,7 +7,7 @@
           <div class="actions">
             <el-button type="primary" plain size="small" @click="openSummary">详情记录</el-button>
           </div>
-          <Detail ref="detailRef" @refresh="fetchCalendarData" />
+          <Detail ref="detailRef" :close-on-click-modal="false" @refresh="fetchCalendarData" />
           <SummaryDialog ref="summaryDialogRef" />
         </div>
       </template>

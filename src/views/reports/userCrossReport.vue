@@ -6,6 +6,7 @@
           <span class="title">{{ isFinance ? '人员财务工时矩阵表' : '人员有效工时矩阵表' }}</span>
           
           <div class="filters">
+            <!-- 💡 修改点 1：增加 disabled-date 属性及两个日历事件，用于限制一个月时长 -->
             <el-date-picker
               v-model="dateRange"
               type="daterange"
@@ -15,6 +16,9 @@
               format="YYYY-MM-DD"
               value-format="YYYY-MM-DD"
               style="width: 260px"
+              :disabled-date="disabledDate"
+              @calendar-change="handleCalendarChange"
+              @visible-change="handleVisibleChange"
               @change="fetchData"
             />
             
@@ -39,7 +43,6 @@
               <el-option v-for="user in userList" :key="user.id" :label="user.name" :value="user.id" />
             </el-select>
 
-            <!-- ================= 【新增】审批状态选择器 ================= -->
             <el-select 
               v-model="queryParams.status" 
               placeholder="审批状态"
@@ -49,7 +52,6 @@
               <el-option label="已审批" :value="3" />
               <el-option label="包含未审批" :value="-1" />
             </el-select>
-            <!-- ========================================================= -->
 
             <el-button type="primary" icon="Search" @click="fetchData">查询</el-button>
             <el-button icon="Download" @click="exportData">导出</el-button>
@@ -57,7 +59,6 @@
         </div>
       </template>
 
-      <!-- 💡 修改点 1: 增加 :key="tableKey" 强制 Element 刷新动态列 -->
       <el-table 
         :key="tableKey"
         v-loading="loading" 
@@ -78,7 +79,6 @@
           :key="dateItem.date" 
           :label="dateItem.date.substring(5)" align="center"
         >
-          <!-- 💡 修改点 2: 确保此处的 key 在全局唯一 -->
           <el-table-column
             v-for="proj in dateItem.projects"
             :key="`${dateItem.date}_${proj.id}`"
@@ -116,46 +116,76 @@ import * as XLSX from 'xlsx';
 import { getUserCrossReportApi } from '../../api/report';
 import { getDepartmentsApi } from '../../api/department';
 import { getUsersApi } from '../../api/user';
-import { useSystemConfigStore } from '../../stores/systemConfig';
 
 const route = useRoute();
-const configStore = useSystemConfigStore();
 
-// 💡 核心区分：是否为财务数据
 const isFinance = computed(() => route.meta.isFinance === true);
 
 const loading = ref(false);
 const dateRange = ref<[string, string]>(['', '']);
 
-// ================= 【新增】参数中增加 status，默认值为 3 (已审批) =================
 const queryParams = ref({ departmentId: '', userId: '', status: 3 });
-// =================================================================================
 
 const deptList = ref<any[]>([]);
 const userList = ref<any[]>([]);
 
-// 构建表格使用的结构
 const dateColumns = ref<{ date: string, projects: {id: string, name: string}[] }[]>([]);
 const tableData = ref<any[]>([]);
-
-// 💡 修改点 3: 用于强制重绘表格的唯一 Key
 const tableKey = ref(Date.now());
 
-// 1. 初始化默认时间：上月配置起点 ～ 当月配置截至点
+// 💡 修改点 2：新增用于限制日期的响应式变量
+const choiceDate = ref<Date | null>(null);
+const minSelectableDate = ref<dayjs.Dayjs | null>(null);
+const maxSelectableDate = ref<dayjs.Dayjs | null>(null);
+
+// 💡 修改点 3：处理日历面板点击事件，记录第一次点击的时间
+const handleCalendarChange = (val: [Date, Date | null]) => {
+  // val 是一个数组，如果用户只点了一下，val[1] 会是 null
+  if (val && val[0] && !val[1]) {
+    choiceDate.value = val[0];
+    // 计算允许选择的前后一个月边界，避免在 disabledDate 里高频重复计算影响性能
+    minSelectableDate.value = dayjs(val[0]).subtract(1, 'month');
+    maxSelectableDate.value = dayjs(val[0]).add(1, 'month');
+  } else {
+    // 选完完整的起止时间后，重置
+    choiceDate.value = null;
+    minSelectableDate.value = null;
+    maxSelectableDate.value = null;
+  }
+};
+
+// 💡 修改点 4：处理日期面板收起事件，避免用户点了一下就关掉导致状态残留
+const handleVisibleChange = (visible: boolean) => {
+  if (!visible) {
+    choiceDate.value = null;
+    minSelectableDate.value = null;
+    maxSelectableDate.value = null;
+  }
+};
+
+// 💡 修改点 5：禁用超过一个月的日期
+const disabledDate = (time: Date) => {
+  if (!choiceDate.value || !minSelectableDate.value || !maxSelectableDate.value) {
+    return false; // 如果还没有选择第一个日期，所有日期都可选
+  }
+  const timeDayjs = dayjs(time);
+  return timeDayjs.isBefore(minSelectableDate.value, 'day') || timeDayjs.isAfter(maxSelectableDate.value, 'day');
+};
+
+// 💡 修改点 6：修改默认日期算法：上周一 至 本周日
 const calculateDefaultDates = () => {
-  const startDay = configStore.attendanceStartDate;
-  const endDay = configStore.attendanceEndDate;
-  const lastMonth = dayjs().subtract(1, 'month').startOf('month'); 
-  const maxDaysInLastMonth = lastMonth.daysInMonth();
-  const startDate = lastMonth.date(Math.min(startDay, maxDaysInLastMonth));
-  const thisMonth = dayjs().startOf('month');
-  const maxDaysInThisMonth = thisMonth.daysInMonth();
-  const endDate = thisMonth.date(Math.min(endDay, maxDaysInThisMonth));
+  const now = dayjs();
+  // 获取今天是周几 (dayjs里周日是0，我们将它转换成周日是7方便计算)
+  const dayOfWeek = now.day() === 0 ? 7 : now.day();
+  
+  // 上周一：当前时间往前推算 (今天星期数 - 1 + 7天)
+  const startDate = now.subtract(dayOfWeek - 1 + 7, 'day');
+  // 本周日：当前时间往后推算 (7天 - 今天星期数)
+  const endDate = now.add(7 - dayOfWeek, 'day');
 
   dateRange.value = [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')];
 };
 
-// 2. 生成连续的日期列并初始化
 const generateEmptyDateColumns = (start: string, end: string) => {
   const dates = [];
   let current = dayjs(start);
@@ -163,22 +193,19 @@ const generateEmptyDateColumns = (start: string, end: string) => {
   while (current.isBefore(last) || current.isSame(last, 'day')) {
     dates.push({
       date: current.format('YYYY-MM-DD'),
-      projects: [] // 稍后用后端数据填充
+      projects: []
     });
     current = current.add(1, 'day');
   }
   return dates;
 };
 
-// 3. 构建矩阵数据
 const buildMatrixData = (rawData: any[]) => {
   const valKey = isFinance.value ? 'totalFinanceHours' : 'totalHours';
   
-  // A. 重置日期列
   const columns = generateEmptyDateColumns(dateRange.value[0], dateRange.value[1]);
   const dateMap = new Map(columns.map(c => [c.date, c]));
 
-  // B. 解析每天发生过的项目 (去重)
   rawData.forEach(item => {
     if (dateMap.has(item.dateStr)) {
       const dayObj = dateMap.get(item.dateStr)!;
@@ -189,7 +216,6 @@ const buildMatrixData = (rawData: any[]) => {
   });
   dateColumns.value = columns;
 
-  // C. 组装 Y轴 用户行数据
   const userMap = new Map<string, any>();
   rawData.forEach(item => {
     if (!userMap.has(item.userId)) {
@@ -201,7 +227,6 @@ const buildMatrixData = (rawData: any[]) => {
     }
     const userRow = userMap.get(item.userId);
     
-    // 动态 key，格式如：2026-06-01_1234abcd
     const cellKey = `${item.dateStr}_${item.projectId}`;
     userRow[cellKey] = (userRow[cellKey] || 0) + item[valKey];
     userRow.totalSum += item[valKey];
@@ -220,14 +245,10 @@ const fetchData = async () => {
       endDate: dateRange.value[1],
       departmentId: queryParams.value.departmentId || null,
       userId: queryParams.value.userId || null,
-      // ================= 【新增】将 status 传递给后端 =================
       status: queryParams.value.status 
-      // ==============================================================
     });
     
     buildMatrixData(res || []);
-    
-    // 💡 修改点 4: 数据构建完成后，更新 tableKey 强制表格重新渲染
     tableKey.value = Date.now();
     
   } catch (error) {
@@ -251,7 +272,7 @@ const exportData = () => {
   }
   const headerRow = ['人员名称', '期间总计'];
   dateColumns.value.forEach(dateItem => {
-    const dateStr = dateItem.date.substring(5); // 取 MM-DD
+    const dateStr = dateItem.date.substring(5);
     if (dateItem.projects.length === 0) {
       headerRow.push(`${dateStr} (无)`);
     } else {
