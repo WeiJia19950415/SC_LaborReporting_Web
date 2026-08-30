@@ -92,6 +92,10 @@
             <el-icon><Document /></el-icon>
             <span>人员有效工时表</span>
           </el-menu-item>
+          <el-menu-item index="/unsubmitted" v-if="hasPermission('SC_LaborReporting.ReportManagement.UserFinanceReport')">
+            <el-icon><Document /></el-icon>
+            <span>未交工时人员清单</span>
+          </el-menu-item>
         </el-sub-menu>
         
         <el-menu-item @click="logout" index="">

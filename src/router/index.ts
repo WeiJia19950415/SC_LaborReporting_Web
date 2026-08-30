@@ -111,7 +111,17 @@ const routes = [
           icon: 'Money',
           isFinance: true // 渲染 Hoursfinance
         }
+      },
+      {
+      path: 'unsubmitted',
+      name: 'unsubmitted',
+      component: () => import('../views/reports/unsubmittedReport.vue'),
+      meta: { 
+        title: '未交工时人员清单', 
+        icon: 'User',
+        isFinance: true // 渲染 Hoursfinance
       }
+    }
     ]
   }
 ];

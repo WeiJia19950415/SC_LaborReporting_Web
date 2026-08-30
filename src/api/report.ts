@@ -34,6 +34,12 @@ export function exportDepartmentTable(params: any) {
     method: 'get',
     params
   })
+}
 
-  
+export function getUnsubmittedUsers(params: { queryDate: string; departmentId?: string }) {
+  return request({
+    url: '/api/app/report/unsubmitted-users',
+    method: 'get',
+    params
+  })
 }
