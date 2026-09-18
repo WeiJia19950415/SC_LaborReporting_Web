@@ -6,7 +6,6 @@
           <span class="title">{{ isFinance ? '人员财务工时矩阵表' : '人员有效工时矩阵表' }}</span>
           
           <div class="filters">
-            <!-- 💡 修改点 1：增加 disabled-date 属性及两个日历事件，用于限制一个月时长 -->
             <el-date-picker
               v-model="dateRange"
               type="daterange"
@@ -19,35 +18,22 @@
               :disabled-date="disabledDate"
               @calendar-change="handleCalendarChange"
               @visible-change="handleVisibleChange"
-              @change="fetchData"
             />
             
             <el-select 
               v-model="queryParams.departmentId" 
-              placeholder="选择部门" 
+              placeholder="选择部门(必填)" 
               clearable 
-              style="width: 130px"
-              @change="fetchData"
+              style="width: 150px"
             >
               <el-option v-for="dept in deptList" :key="dept.id" :label="dept.fullName" :value="dept.id" />
-            </el-select>
-
-            <el-select 
-              v-model="queryParams.userId" 
-              placeholder="搜索人员" 
-              clearable 
-              filterable 
-              style="width: 130px"
-              @change="fetchData"
-            >
-              <el-option v-for="user in userList" :key="user.id" :label="user.name" :value="user.id" />
             </el-select>
 
             <el-select 
               v-model="queryParams.status" 
               placeholder="审批状态"
               style="width: 130px"
-              @change="fetchData"
+              :disabled="isFinance"
             >
               <el-option label="已审批" :value="3" />
               <el-option label="包含未审批" :value="-1" />
@@ -59,14 +45,18 @@
         </div>
       </template>
 
+      <!-- 💡 移除了 :key="tableKey"，避免大表格 DOM 全量销毁重建引起卡顿 -->
       <el-table 
-        :key="tableKey"
         v-loading="loading" 
         :data="tableData" 
         border
         style="width: 100%"
         height="850"
       >
+        <template #empty>
+          <el-empty description="请选择时间范围及部门后查询" />
+        </template>
+        
         <el-table-column prop="userName" label="人员名称" width="120" fixed="left" align="center" />
         <el-table-column prop="totalSum" label="期间总计" width="100" fixed="left" align="center">
           <template #default="{ row }">
@@ -108,53 +98,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, shallowRef, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage ,ElLoading} from 'element-plus';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import { getUserCrossReportApi } from '../../api/report';
+import { getUserCrossReportApi ,exportUserCrossReportApi} from '../../api/report';
 import { getDepartmentsApi } from '../../api/department';
-import { getUsersApi } from '../../api/user';
 
 const route = useRoute();
-
+const exportLoading = ref(false);
 const isFinance = computed(() => route.meta.isFinance === true);
 
 const loading = ref(false);
-const dateRange = ref<[string, string]>(['', '']);
+const dateRange = ref<[string, string]>(['', '']); // 默认不选择日期
 
-const queryParams = ref({ departmentId: '', userId: '', status: 3 });
+// 默认不选择部门 (departmentId: '')
+const queryParams = ref({ departmentId: '', status: 3 });
 
-const deptList = ref<any[]>([]);
-const userList = ref<any[]>([]);
+// 字典数据使用 shallowRef
+const deptList = shallowRef<any[]>([]);
 
-const dateColumns = ref<{ date: string, projects: {id: string, name: string}[] }[]>([]);
-const tableData = ref<any[]>([]);
-const tableKey = ref(Date.now());
+// 海量表格数据和动态列使用 shallowRef，避免深度 Proxy 劫持导致主线程卡死
+const dateColumns = shallowRef<{ date: string, projects: {id: string, name: string}[] }[]>([]);
+const tableData = shallowRef<any[]>([]);
 
-// 💡 修改点 2：新增用于限制日期的响应式变量
+// 限制日期的响应式变量
 const choiceDate = ref<Date | null>(null);
 const minSelectableDate = ref<dayjs.Dayjs | null>(null);
 const maxSelectableDate = ref<dayjs.Dayjs | null>(null);
 
-// 💡 修改点 3：处理日历面板点击事件，记录第一次点击的时间
+// 处理日历面板点击事件，记录第一次点击的时间
 const handleCalendarChange = (val: [Date, Date | null]) => {
-  // val 是一个数组，如果用户只点了一下，val[1] 会是 null
   if (val && val[0] && !val[1]) {
     choiceDate.value = val[0];
-    // 计算允许选择的前后一个月边界，避免在 disabledDate 里高频重复计算影响性能
-    minSelectableDate.value = dayjs(val[0]).subtract(1, 'month');
-    maxSelectableDate.value = dayjs(val[0]).add(1, 'month');
+    // 💡 限制最大可选跨度为 31 天 (包含当天即 32 天)
+    minSelectableDate.value = dayjs(val[0]).subtract(31, 'day');
+    maxSelectableDate.value = dayjs(val[0]).add(31, 'day');
   } else {
-    // 选完完整的起止时间后，重置
     choiceDate.value = null;
     minSelectableDate.value = null;
     maxSelectableDate.value = null;
   }
 };
 
-// 💡 修改点 4：处理日期面板收起事件，避免用户点了一下就关掉导致状态残留
+// 处理日期面板收起事件
 const handleVisibleChange = (visible: boolean) => {
   if (!visible) {
     choiceDate.value = null;
@@ -163,27 +151,13 @@ const handleVisibleChange = (visible: boolean) => {
   }
 };
 
-// 💡 修改点 5：禁用超过一个月的日期
+// 禁用超过限制跨度的日期
 const disabledDate = (time: Date) => {
   if (!choiceDate.value || !minSelectableDate.value || !maxSelectableDate.value) {
-    return false; // 如果还没有选择第一个日期，所有日期都可选
+    return false;
   }
   const timeDayjs = dayjs(time);
   return timeDayjs.isBefore(minSelectableDate.value, 'day') || timeDayjs.isAfter(maxSelectableDate.value, 'day');
-};
-
-// 💡 修改点 6：修改默认日期算法：上周一 至 本周日
-const calculateDefaultDates = () => {
-  const now = dayjs();
-  // 获取今天是周几 (dayjs里周日是0，我们将它转换成周日是7方便计算)
-  const dayOfWeek = now.day() === 0 ? 7 : now.day();
-  
-  // 上周一：当前时间往前推算 (今天星期数 - 1 + 7天)
-  const startDate = now.subtract(dayOfWeek - 1 + 7, 'day');
-  // 本周日：当前时间往后推算 (7天 - 今天星期数)
-  const endDate = now.add(7 - dayOfWeek, 'day');
-
-  dateRange.value = [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')];
 };
 
 const generateEmptyDateColumns = (start: string, end: string) => {
@@ -205,19 +179,19 @@ const buildMatrixData = (rawData: any[]) => {
   
   const columns = generateEmptyDateColumns(dateRange.value[0], dateRange.value[1]);
   const dateMap = new Map(columns.map(c => [c.date, c]));
+  const userMap = new Map<string, any>();
 
+  // 合并遍历逻辑，一次循环同时构建列和行数据
   rawData.forEach(item => {
+    // 1. 构建日期-项目列
     if (dateMap.has(item.dateStr)) {
       const dayObj = dateMap.get(item.dateStr)!;
-      if (!dayObj.projects.find((p: any) => p.id === item.projectId)) {
+      if (!dayObj.projects.some((p: any) => p.id === item.projectId)) {
         dayObj.projects.push({ id: item.projectId, name: item.projectName });
       }
     }
-  });
-  dateColumns.value = columns;
-
-  const userMap = new Map<string, any>();
-  rawData.forEach(item => {
+    
+    // 2. 构建人员行数据
     if (!userMap.has(item.userId)) {
       userMap.set(item.userId, {
         userId: item.userId,
@@ -232,24 +206,42 @@ const buildMatrixData = (rawData: any[]) => {
     userRow.totalSum += item[valKey];
   });
 
+  // 使用 shallowRef 只需要直接赋值 .value 即可触发视图更新
+  dateColumns.value = columns;
   tableData.value = Array.from(userMap.values());
 };
 
 const fetchData = async () => {
-  if (!dateRange.value || dateRange.value.length !== 2) return;
+  // 💡 优化 1：必填项校验 - 日期
+  if (!dateRange.value || dateRange.value.length !== 2 || !dateRange.value[0]) {
+    ElMessage.warning('请选择时间范围');
+    return;
+  }
+  
+  // 💡 再次防御性校验：日期跨度不得超过32天
+  const daysDiff = dayjs(dateRange.value[1]).diff(dayjs(dateRange.value[0]), 'day');
+  if (daysDiff > 31) {
+    ElMessage.warning('时间范围不能超过32天');
+    return;
+  }
+
+  // 💡 优化 2：必填项校验 - 部门
+  // if (!queryParams.value.departmentId) {
+  //   ElMessage.warning('请选择一个部门后再查询');
+  //   return;
+  // }
+
   loading.value = true;
   
   try {
     const res: any = await getUserCrossReportApi({
       startDate: dateRange.value[0],
       endDate: dateRange.value[1],
-      departmentId: queryParams.value.departmentId || null,
-      userId: queryParams.value.userId || null,
+      departmentId: queryParams.value.departmentId, // 必定有值
       status: queryParams.value.status 
     });
     
     buildMatrixData(res || []);
-    tableKey.value = Date.now();
     
   } catch (error) {
     ElMessage.error('拉取报表数据失败');
@@ -261,61 +253,76 @@ const fetchData = async () => {
 const loadFilters = async () => {
   const deptRes: any = await getDepartmentsApi();
   deptList.value = deptRes.items || [];
-  const userRes: any = await getUsersApi();
-  userList.value = userRes.items || [];
 };
 
-const exportData = () => {
-  if (!tableData.value || tableData.value.length === 0) {
-    ElMessage.warning('当前没有数据可供导出');
+const exportData = async () => {
+  if (!dateRange.value || dateRange.value.length !== 2 || !dateRange.value[0]) {
+    ElMessage.warning('请选择时间范围');
     return;
   }
-  const headerRow = ['人员名称', '期间总计'];
-  dateColumns.value.forEach(dateItem => {
-    const dateStr = dateItem.date.substring(5);
-    if (dateItem.projects.length === 0) {
-      headerRow.push(`${dateStr} (无)`);
-    } else {
-      dateItem.projects.forEach(proj => {
-        headerRow.push(`${dateStr} - ${proj.name}`);
-      });
-    }
-  });
-  const dataRows: any[][] = [];
-  tableData.value.forEach(row => {
-    const rowData = [
-      row.userName, 
-      row.totalSum ? Number(row.totalSum.toFixed(1)) : 0
-    ];
-    dateColumns.value.forEach(dateItem => {
-      if (dateItem.projects.length === 0) {
-        rowData.push('-');
-      } else {
-        dateItem.projects.forEach(proj => {
-          const val = row[`${dateItem.date}_${proj.id}`];
-          rowData.push(val > 0 ? Number(val.toFixed(1)) : '-');
-        });
-      }
-    });
-    dataRows.push(rowData);
-  });
-  const worksheet = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
-  const wscols = [{ wch: 15 }, { wch: 10 }]; 
-  worksheet['!cols'] = wscols;
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, isFinance.value ? '财务工时矩阵' : '有效工时矩阵');
-  const titleName = isFinance.value ? '人员财务工时矩阵表' : '人员有效工时矩阵表';
-  const fileName = `${titleName}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
   
-  XLSX.writeFile(workbook, fileName);
-  ElMessage.success('导出成功');
+  // 防御性校验：日期跨度不得超过32天
+  const daysDiff = dayjs(dateRange.value[1]).diff(dayjs(dateRange.value[0]), 'day');
+  if (daysDiff > 31) {
+    ElMessage.warning('时间范围不能超过32天');
+    return;
+  }
+
+// 💡 3. 开启全屏遮罩，lock: true 会锁定屏幕禁止滚动和点击操作
+  const loadingInstance = ElLoading.service({
+    lock: true,
+    text: '正在生成 Excel 文件，数据量较大请耐心等待...',
+    background: 'rgba(0, 0, 0, 0.7)', // 半透明黑色背景，让用户明显感觉到页面被冻结
+  });
+  exportLoading.value = true; // 按钮也进入 loading 状态
+
+  try {
+    
+    // 调用后端导出接口 
+    // ⚠️重要：如果是使用 Axios 封装的请求，请务必在请求配置中加上 responseType: 'blob' 
+    const response: any = await exportUserCrossReportApi({
+      startDate: dateRange.value[0],
+      endDate: dateRange.value[1],
+      departmentId: queryParams.value.departmentId, 
+      status: queryParams.value.status,
+      isFinance: isFinance.value // 传给后端区分是财务工时还是有效工时
+    });
+
+    // 解析二进制流为文件下载
+    const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.style.display = 'none';
+    link.href = url;
+    
+    // 如果后端在 Header (content-disposition) 里带了文件名，你也可以从中解析。
+    // 这里采取前端生成文件名的方式：
+    const titleName = isFinance.value ? '人员财务工时矩阵表' : '人员有效工时矩阵表';
+    const fileName = `${titleName}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+    
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    
+    // 清理 DOM 和 URL 资源
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+    
+    ElMessage.success('导出成功');
+  } catch (error) {
+    console.error('导出失败', error);
+    ElMessage.error('导出失败，请重试');
+  }finally {
+    // 💡 4. 无论成功还是失败，最后一定要关闭遮罩并恢复按钮状态
+    loadingInstance.close();
+    exportLoading.value = false;
+  }
 };
 
 onMounted(async () => {
   await loadFilters();
-  calculateDefaultDates();
-  fetchData();
+  // 💡 优化 3：页面初始化时，不设置默认时间，也不调用 fetchData()，强制用户手动选择条件。
 });
 </script>
 

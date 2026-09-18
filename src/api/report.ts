@@ -43,3 +43,30 @@ export function getUnsubmittedUsers(params: { queryDate: string; departmentId?: 
     params
   })
 }
+
+export function getLaborSummaryReport(params: any) {
+  return request({
+    url: '/api/app/report/labor-summary-report',
+    method: 'get',
+    params
+  });
+}
+
+// 导出文件接口，必须指定 responseType: 'blob'
+export function exportLaborSummaryReport(params: any) {
+  return request({
+    url: '/api/app/report/export-labor-summary-report',
+    method: 'get',
+    params,
+    responseType: 'blob'
+  });
+}
+
+export function exportUserCrossReportApi(params: any) {
+  return request({
+    url: '/api/app/report/export-user-cross-report',
+    method: 'get',
+    params,
+    responseType: 'blob'
+  });
+}

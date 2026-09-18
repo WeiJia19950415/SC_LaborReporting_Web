@@ -75,6 +75,12 @@ const routes = [
         meta: { title: '工时填报', icon: 'Memo' } 
       },
       {
+        path: 'laborReportHistory', 
+        name: 'LaborReportHistory',
+        component: () => import('../views/laborReportHistory/index.vue'),
+        meta: { title: '工时填报-历史', icon: 'Memo' } 
+      },
+      {
         path: 'projectRoles', 
         name: 'ProjectRoles',
         component: () => import('../views/projectRoles/index.vue'),
@@ -113,13 +119,21 @@ const routes = [
         }
       },
       {
+        path: 'laborReportSummary',
+        name: 'laborReportSummary',
+        component: () => import('../views/reports/laborReportSummarys.vue'),
+        meta: { 
+          title: '工时汇总报表', 
+          icon: 'Money'
+        }
+      },
+      {
       path: 'unsubmitted',
       name: 'unsubmitted',
       component: () => import('../views/reports/unsubmittedReport.vue'),
       meta: { 
         title: '未交工时人员清单', 
-        icon: 'User',
-        isFinance: true // 渲染 Hoursfinance
+        icon: 'User'
       }
     }
     ]

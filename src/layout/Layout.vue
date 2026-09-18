@@ -68,6 +68,11 @@
           <span>工时填报</span>
         </el-menu-item>
 
+        <el-menu-item index="/laborReportHistory" v-if="hasPermission('SC_LaborReporting.LaborReport')">
+          <el-icon><Calendar /></el-icon>
+          <span>工时填报-历史</span>
+        </el-menu-item>
+
         <el-menu-item index="/approval" v-if="hasPermission('SC_LaborReporting.LaborReportApproval')">
           <el-icon><Timer /></el-icon>
           <span>工时审批</span>
@@ -88,9 +93,13 @@
             <el-icon><Document /></el-icon>
             <span>人员有效工时表</span>
           </el-menu-item>
-          <el-menu-item index="/userFinanceReport" v-if="hasPermission('SC_LaborReporting.ReportManagement.UserFinanceReport')">
+            <el-menu-item index="/userFinanceReport" v-if="hasPermission('SC_LaborReporting.ReportManagement.UserFinanceReport')">
             <el-icon><Document /></el-icon>
-            <span>人员有效工时表</span>
+            <span>财务有效工时表</span>
+          </el-menu-item>
+          <el-menu-item index="/laborReportSummary" v-if="hasPermission('SC_LaborReporting.ReportManagement.UserFinanceReport')">
+            <el-icon><Document /></el-icon>
+            <span>财务工时汇总报表</span>
           </el-menu-item>
           <el-menu-item index="/unsubmitted" v-if="hasPermission('SC_LaborReporting.ReportManagement.UserFinanceReport')">
             <el-icon><Document /></el-icon>

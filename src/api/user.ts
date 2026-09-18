@@ -73,3 +73,20 @@ export function getApplicationConfiguration() {
     method: 'get'
   });
 }
+
+
+// 上传考勤数据的接口
+export function importAttendanceData(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request({
+    url: '/api/app/user-management/import-attendance',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    // 处理3万条数据可能需要一些时间，延长超时时间至 3 分钟
+    timeout: 180000 
+  });
+}

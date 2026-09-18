@@ -15,7 +15,7 @@
         v-loading="loading"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
-        <el-table-column label="工时类型" width="60" align="center">
+        <el-table-column label="工时类型" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.laborType === 1 ? 'primary' : 'success'">
               {{ row.laborType === 1 ? '研发' : '生产' }}
@@ -23,7 +23,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="工时类别" width="60" align="center">
+        <el-table-column label="工时类别" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.laborClass === 1 ? 'warning' : 'info'">
               {{ row.laborClass === 1 ? '项目' : '其他' }}
@@ -42,9 +42,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="code" label="排序号" width="130" />
+        <el-table-column prop="code" label="排序号" width="90" align="center" />
 
-        <el-table-column label="适用部门(全称)" min-width="120" show-overflow-tooltip>
+        <!-- 【新增】映射关系列 -->
+        <el-table-column label="映射关系" min-width="120" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.mappingType" type="info" effect="plain">
+              {{ getMappingTypeText(row.mappingType) }}
+            </el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="适用部门(全称)" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.departmentFullNames?.join('，') || '-' }}
           </template>
@@ -58,7 +68,7 @@
 
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
         
-        <el-table-column label="操作" width="165" align="center" fixed="right">
+        <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openDialog('addChild', row)">添加下级</el-button>
             <el-button link type="warning" size="small" @click="openDialog('edit', row)">修改</el-button>
@@ -68,7 +78,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="600px" @close="closeDialog">
+    <!-- 弹窗 -->
+    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="650px" @close="closeDialog">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
         
         <el-form-item label="上级分类" prop="parentId">
@@ -98,6 +109,20 @@
           <el-radio-group v-model="form.laborClass">
             <el-radio :label="1">项目工时</el-radio>
             <el-radio :label="2">其他工时</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <!-- 【新增】映射关系（因为选项较多，换行显示或者使用select皆可，这里使用radio配合 flex 布局） -->
+        <el-form-item label="映射关系" prop="mappingType">
+          <el-radio-group v-model="form.mappingType">
+            <el-radio 
+              v-for="item in mappingTypeOptions" 
+              :key="item.value" 
+              :label="item.value"
+              style="margin-right: 15px;"
+            >
+              {{ item.label }}
+            </el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -145,7 +170,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
-import { getLaborCategoryList, createLaborCategory, updateLaborCategory, deleteLaborCategory,importLaborCategories } from '../../api/laborCategory';
+import { getLaborCategoryList, createLaborCategory, updateLaborCategory, deleteLaborCategory, importLaborCategories } from '../../api/laborCategory';
 import { getDepartmentList } from '../../api/department'; 
 import { getProjectRoles } from '../../api/projectRole';
 import * as XLSX from 'xlsx';
@@ -161,9 +186,38 @@ const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
 
 const deptOptions = ref<any[]>([]);
-const projectRoleList = ref<any[]>([]); // 替换旧的 roleOptions
+const projectRoleList = ref<any[]>([]); 
 const categoryOptions = ref<any[]>([]); 
 
+// 【新增】配置映射关系的字典 (注意 value 全部为 string 以匹配后端的 string 约束)
+const mappingTypeOptions = [
+  { label: '管理活动', value: 'Management' },
+  { label: '研发活动', value: 'RnD' },
+  { label: '按照人员部门归属', value: 'ByDepartment' },
+  { label: '生产活动', value: 'Production' },
+  { label: '销售活动', value: 'Sales' }
+];
+
+// 【新增】通过值获取中文描述
+const getMappingTypeText = (val: string) => {
+  const option = mappingTypeOptions.find(o => o.value === val);
+  return option ? option.label : val;
+};
+
+// 【新增】导入时：通过中文描述逆向获取传给后端的值
+const getMappingTypeValue = (text: string) => {
+  if (!text) return '';
+  const t = text.trim();
+  if (t.includes('管理')) return 'Management';
+  if (t.includes('研发')) return 'RnD';
+  if (t.includes('部门')) return 'ByDepartment';
+  if (t.includes('生产') || t.includes('生成')) return 'Production'; // 兼容错别字
+  if (t.includes('销售')) return 'Sales';
+  
+  // 兜底精确匹配
+  const option = mappingTypeOptions.find(o => o.label === t);
+  return option ? option.value : '';
+};
 
 const triggerImport = () => {
   fileInput.value?.click();
@@ -187,6 +241,8 @@ const handleFileUpload = (event: Event) => {
       const importList = jsonData.map(row => ({
         laborType: row['工时类型'] || '',
         laborClass: row['工时类别'] || '',
+        // 【新增】支持导入 Excel 中的 "映射关系" 列
+        mappingType: getMappingTypeValue(row['映射关系']),
         level1: row['1级分类'] || '',
         level2: row['2级分类'] || '',
         level3: row['3级分类'] || '',
@@ -202,39 +258,40 @@ const handleFileUpload = (event: Event) => {
       }
 
       importLoading.value = true;
-      // 调用后端解析好的 API 节点
       await importLaborCategories(importList);
       ElMessage.success('导入成功');
       
-      // 刷新列表数据
       fetchData();
     } catch (error) {
       console.error('解析或导入失败', error);
       ElMessage.error('导入失败，请检查文件格式或重试');
     } finally {
       importLoading.value = false;
-      // 重置 input 以支持连续上传相同文件
       if (fileInput.value) fileInput.value.value = ''; 
     }
   };
   reader.readAsArrayBuffer(file);
 };
-// 修改表单结构，加入 projectRoleIds
+
+// 【修改】表单结构，加入 mappingType (默认为空字符串)
 const form = reactive({
   id: '',
   parentId: null as string | null,
   name: '',
   laborType: 1,
   laborClass: 1,
+  mappingType: '', // <=== 新增字段
   departmentIds: [] as string[],
   projectRoleIds: [] as string[], 
   remark: ''
 });
 
+// 【修改】加入映射关系的非空校验
 const rules = reactive({
   name: [{ required: true, message: '分类名称不能为空', trigger: 'blur' }],
   laborType: [{ required: true, message: '请选择工时类型', trigger: 'change' }],
-  laborClass: [{ required: true, message: '请选择工时类别', trigger: 'change' }]
+  laborClass: [{ required: true, message: '请选择工时类别', trigger: 'change' }],
+  mappingType: [{ required: true, message: '请选择映射关系', trigger: 'change' }] // <=== 新增校验
 });
 
 // 构建树并计算深度
@@ -261,7 +318,6 @@ const buildTreeAndCalculateDepth = (list: any[]) => {
   return tree;
 };
 
-// 安全的上级树构建 (防止死循环)
 const getSafeParentOptions = (tree: any[], currentEditId: string | null) => {
   const cloneTree = JSON.parse(JSON.stringify(tree)); 
   
@@ -294,7 +350,6 @@ const translateListToTree = (list: any[]) => {
   return tree;
 };
 
-// 获取部门与项目角色字典数据
 const initDictData = async () => {
   try {
     const [deptRes, roleRes] = await Promise.all([
@@ -308,12 +363,11 @@ const initDictData = async () => {
   }
 };
 
-// 根据 ID 数组在表格中渲染项目角色名称
 const getProjectRoleNames = (ids: string[]) => {
   if (!ids || ids.length === 0) return '-';
   return ids.map(id => {
     const role = projectRoleList.value.find(r => r.id === id);
-    return role ? role.name : id; // 找不到名字就显示 ID 兜底
+    return role ? role.name : id;
   }).join('，');
 };
 
@@ -335,16 +389,17 @@ const openDialog = (type: 'addRoot' | 'addChild' | 'edit', row?: any) => {
 
   if (type === 'addRoot') {
     dialogTitle.value = '新增顶级分类';
-    Object.assign(form, { id: '', parentId: null, name: '', laborType: 1, laborClass: 1, departmentIds: [], projectRoleIds: [], remark: '' });
+    Object.assign(form, { id: '', parentId: null, name: '', laborType: 1, laborClass: 1, mappingType: '', departmentIds: [], projectRoleIds: [], remark: '' });
   } else if (type === 'addChild') {
     dialogTitle.value = `在【${row.name}】下新增`;
-    Object.assign(form, { id: '', parentId: row.id, name: '', laborType: 1, laborClass: 1, departmentIds: [], projectRoleIds: [], remark: '' });
+    Object.assign(form, { id: '', parentId: row.id, name: '', laborType: 1, laborClass: 1, mappingType: '', departmentIds: [], projectRoleIds: [], remark: '' });
   } else if (type === 'edit') {
     dialogTitle.value = '修改分类';
     Object.assign(form, {
       ...row,
+      mappingType: row.mappingType || '', 
       departmentIds: row.departmentIds || [],
-      projectRoleIds: row.projectRoleIds || [] // 回显绑定的项目角色
+      projectRoleIds: row.projectRoleIds || [] 
     });
   }
 };
@@ -387,7 +442,7 @@ const handleDelete = (row: any) => {
 const closeDialog = () => formRef.value?.resetFields();
 
 onMounted(async () => {
-  await initDictData(); // 必须先加载字典，否则表格渲染不出角色名称
+  await initDictData(); 
   fetchData();
 });
 </script>
@@ -395,5 +450,9 @@ onMounted(async () => {
 <style scoped>
 .app-container {
   padding: 20px;
+}
+/* 微调 el-radio 在弹窗中的间距 */
+.el-radio {
+  margin-bottom: 8px;
 }
 </style>

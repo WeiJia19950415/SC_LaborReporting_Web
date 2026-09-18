@@ -32,6 +32,17 @@
 
       <div class="header-actions" style="margin-bottom: 20px;">
         <el-button type="primary" icon="Plus" @click="handleCreate">新增用户</el-button>
+        
+        <el-upload
+          action="#"
+          :show-file-list="false"
+          :http-request="handleImport"
+          :before-upload="beforeUpload"
+          accept=".xlsx, .xls"
+          style="display: inline-block; margin-left: 12px;"
+        >
+          <el-button type="primary" icon="Upload" :loading="isImporting">考勤数据导入</el-button>
+        </el-upload>
       </div>
 
       <el-table :data="tableData" border v-loading="loading" style="width: 100%">
@@ -149,12 +160,13 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
-import { getUserList, createUser, updateUser, deleteUser, getAllRoles, resetPassword } from '../../api/user';
+import { getUserList, createUser, updateUser, deleteUser, getAllRoles, resetPassword,importAttendanceData } from '../../api/user';
 import { getDepartmentList } from '../../api/department'; 
 
 const tableData = ref([]);
 const loading = ref(false);
 const total = ref(0);
+const isImporting = ref(false);
 
 // 默认 15 行，添加模糊查询字段 filter 和部门筛选字段 departmentId
 const queryParams = reactive({ 
@@ -359,6 +371,46 @@ const submitForm = async () => {
       }
     }
   });
+};
+
+
+// [需求2] 验证导入的格式是 Excel
+const beforeUpload = (file: File) => {
+  const isExcel = 
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+    file.type === 'application/vnd.ms-excel' ||
+    file.name.endsWith('.xlsx') || 
+    file.name.endsWith('.xls');
+    
+  if (!isExcel) {
+    ElMessage.error('仅支持导入 Excel 格式的文件 (.xlsx / .xls)');
+    return false;
+  }
+  
+  // 针对3万行数据，文件通常在 1MB - 5MB 之间，加上 10MB 的保险限制
+  const isLt10M = file.size / 1024 / 1024 < 10;
+  if (!isLt10M) {
+    ElMessage.error('上传文件大小不能超过 10MB!');
+    return false;
+  }
+  
+  return true;
+};
+
+// 触发导入接口
+const handleImport = async (options: any) => {
+  try {
+    isImporting.value = true;
+    await importAttendanceData(options.file);
+    ElMessage.success('考勤数据导入成功！');
+    
+    // TODO: 导入成功后，刷新你当前的列表或者考勤列表
+    // fetchList();
+  } catch (error: any) {
+    ElMessage.error(error.message || '考勤数据导入失败，请检查格式');
+  } finally {
+    isImporting.value = false;
+  }
 };
 
 const resetForm = () => {

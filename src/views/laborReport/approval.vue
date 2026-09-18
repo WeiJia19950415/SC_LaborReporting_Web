@@ -221,6 +221,7 @@ import {
   getDepartmentList,
   getApprovalHistory // 【新增】引入历史记录API，需在 api 文件中添加该方法
 } from '../../api/laborReport';
+import { getProjects } from '../../api/project'; // 假设你有一个自定义的
 
 // ----- 基础变量定义 -----
 const loading = ref(true);
@@ -277,7 +278,7 @@ const loadSearchOptions = async () => {
   try {
     const [usersRes, projsRes, deptsRes] = await Promise.all([
       getUserList(),
-      getProjectList(),
+      getProjects({ maxResultCount: 1000 }),
       getDepartmentList()
     ]);
 
@@ -287,8 +288,11 @@ const loadSearchOptions = async () => {
     userOptions.value.forEach(u => userMap.set(u.id, u.name || u.userName));
 
     // 项目列表映射
+// 项目列表映射
     const projs = projsRes.items || projsRes.data || projsRes;
-    projectOptions.value = Array.isArray(projs) ? projs : [];
+    const allProjs = Array.isArray(projs) ? projs : [];
+    // 仅过滤保留 isOld === true 的项目
+    projectOptions.value = allProjs.filter((proj: any) => proj.isOld === false);
 
     // 部门列表构建树
     const depts = deptsRes.items || deptsRes.data || deptsRes;

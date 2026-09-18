@@ -6,6 +6,24 @@
     destroy-on-close
     @close="handleClose"
   >
+    <!-- 需求8、9：顶部展示当日考勤信息提示 -->
+    <el-alert 
+      v-if="currentAttendance" 
+      :title="alertTitle" 
+      :type="currentAttendance.isMissingPunch ? 'error' : 'success'" 
+      :closable="false"
+      show-icon
+      style="margin-bottom: 15px;"
+    />
+    <el-alert 
+      v-else 
+      title="当日无打卡记录，最大可填报工时为 0 h" 
+      type="error" 
+      show-icon
+      :closable="false"
+      style="margin-bottom: 15px;"
+    />
+
     <el-card shadow="never" class="form-card">
       <el-form ref="formRef" :model="form" :inline="true" label-width="90px">
         <el-form-item label="工时日期">
@@ -46,14 +64,14 @@
       <el-table-column prop="projectRoleName" label="项目角色" width="100" show-overflow-tooltip />
       <el-table-column label="产品系列" min-width="120">
         <template #default="{ row }">
+          <!-- 【修改】：去除了 row.status === 0 || row.status === 3，仅保留其他工时禁用 -->
           <el-select 
             v-model="row.productSeriesId" 
             :placeholder="row.laborClass === 2 ? '无需选择' : '请选择'" 
             clearable 
             filterable
-            :disabled="row.status === 0 || row.status === 3 || row.laborClass === 2"
+            :disabled="row.laborClass === 2"
           >
-            <!-- 修复：产品系列显示逻辑优化 -->
             <el-option
               v-for="item in productSeriesOptions"
               :key="item.id"
@@ -66,20 +84,18 @@
 
       <el-table-column label="任务分类 (必填)" min-width="240">
         <template #default="{ row }">
-          <!-- 使用 tooltip 组件包裹，动态获取任务分类的中文字段名 -->
+          <!-- 【修改】：去除了 tooltip 和 select 的状态禁用限制，使其一直可以下拉和更改 -->
           <el-tooltip 
             effect="dark" 
             :content="row.availableTasks?.find(t => t.id === row.laborCategoryId)?.fullName || ''" 
             placement="top"
-            :disabled="row.status === -1 || !row.laborCategoryId"
+            :disabled="!row.laborCategoryId"
           >
-            <!-- 必须加这一层 div，否则 disabled 状态下的 select 无法触发 hover 事件 -->
             <div style="width: 100%; display: inline-block;">
               <el-select 
                 v-model="row.laborCategoryId" 
                 filterable clearable placeholder="请选择任务" 
                 style="width: 100%" 
-                :disabled="row.status !== -1" 
                 @change="(val) => handleTaskChange(row, val)"
               >
                 <el-option 
@@ -95,20 +111,20 @@
 
       <el-table-column label="简述工作内容" min-width="240">
         <template #default="{ row }">
+          <!-- 【修改】：移除了 disabled 属性 -->
           <el-input 
             v-model="row.jobresponsibilities" 
             type="textarea" :rows="5" placeholder="请输入工作内容" 
-            :disabled="row.status === 0 || row.status === 3" 
           />
         </template>
       </el-table-column>
       <el-table-column label="发生工时" width="130" align="center">
         <template #default="{ row }">
+          <!-- 【修改】：移除了 disabled 属性 -->
           <el-input-number 
             v-model="row.hours" 
             :min="0.5" :step="0.5" step-strictly 
             style="width: 100px;" controls-position="right" 
-            :disabled="row.status === 0 || row.status === 3" 
           />
         </template>
       </el-table-column>
@@ -130,8 +146,9 @@
               撤回
             </el-button>
             
+            <!-- 【修改】：去除了删除按钮仅在特定状态显示的限制，只要不是审批中(0)均可删除 -->
             <el-button 
-              v-if="row.status === -1 || row.status === 1 || row.status === 2" 
+              v-if="row.status !== 0" 
               link 
               type="danger" 
               @click="handleDelete(row, $index)">
@@ -142,16 +159,21 @@
     </el-table>
 
     <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="visible = false">取 消</el-button>
-        <el-button type="primary" @click="submitReport" :loading="submitLoading">保存提交</el-button>
+      <div class="dialog-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: bold; color: #E6A23C;">
+          当前已填报总工时: {{ totalReportedHours }} h
+        </span>
+        <div>
+          <el-button @click="visible = false">取 消</el-button>
+          <el-button type="primary" @click="submitReport" :loading="submitLoading">保存提交</el-button>
+        </div>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive , computed} from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { getProjectRoles } from '../../api/projectRole'
 import { getProjects } from '../../api/project'
@@ -166,7 +188,6 @@ const emit = defineEmits(['refresh'])
 const userStore = useUserStore()
 const systemConfigStore = useSystemConfigStore()
 const productSeriesOptions = ref<any[]>([]);
-// 全量任务字典（用于映射历史汉化数据）
 const allTasksOptions = ref<any[]>([]);
 
 const visible = ref(false)
@@ -174,10 +195,13 @@ const isEdit = ref(false)
 const currentDate = ref('')
 const submitLoading = ref(false)
 
+const currentAttendance = ref<any>(null)
+
 const projectRoles = ref<any[]>([])
 const projects = ref<any[]>([])
+
 const activeProjects = computed(() => {
-  return projects.value.filter(p => !p.isOld)
+  return projects.value.filter(p => p.isOld)
 })
 const form = reactive({
   laborClass: 1,
@@ -186,6 +210,16 @@ const form = reactive({
 })
 
 const tableData = ref<any[]>([])
+
+const totalReportedHours = computed(() => {
+  return tableData.value.reduce((sum, row) => sum + (row.hours || 0), 0)
+})
+
+const alertTitle = computed(() => {
+  if (!currentAttendance.value) return '';
+  if (currentAttendance.value.isMissingPunch) return `当日考勤异常：缺卡。无法报工！`;
+  return `当日打卡记录：${currentAttendance.value.firstPunchTime} - ${currentAttendance.value.lastPunchTime} ，考勤时长: ${currentAttendance.value.durationHours} h`;
+});
 
 const loadProductSeries = async () => {
   try {
@@ -198,7 +232,6 @@ const loadProductSeries = async () => {
 
 const loadAllTasks = async () => {
   try {
-    // 不带任何条件请求，获取全量任务用于中文翻译匹配
     const res = await getLeafCategories({ maxResultCount: 1000 });
     allTasksOptions.value = res.items || res || [];
   } catch (error) {
@@ -206,9 +239,10 @@ const loadAllTasks = async () => {
   }
 };
 
-const open = async (date: string, editMode: boolean, detailIds: string[] = []) => {
+const open = async (date: string, editMode: boolean, detailIds: string[] = [], attendanceInfo: any = null) => {
   currentDate.value = date
   isEdit.value = editMode
+  currentAttendance.value = attendanceInfo
   tableData.value = []
   resetForm()
   
@@ -221,7 +255,6 @@ const open = async (date: string, editMode: boolean, detailIds: string[] = []) =
     projects.value = pRes.items || pRes || []
   }
   
-  // 必须保证全量字典加载完成
   if (productSeriesOptions.value.length === 0) await loadProductSeries()
   if (allTasksOptions.value.length === 0) await loadAllTasks()
 
@@ -231,18 +264,13 @@ const open = async (date: string, editMode: boolean, detailIds: string[] = []) =
       
       if (serverDetails && Array.isArray(serverDetails)) {
         for (const item of serverDetails) {
-          // 根据当前的条件获取【正常可选】的任务字典
           let tasks = await fetchTasksForCondition(item.projectRoleId, item.laborClass)
           
-          // 修复：全量匹配任务分类
-          // 如果当前行已有的 laborCategoryId 不在正常可选的字典内（因筛选条件被过滤了）
           if (item.laborCategoryId && !tasks.some((t: any) => t.id === item.laborCategoryId)) {
-            // 去全量字典里找
             const globalTask = allTasksOptions.value.find(t => t.id === item.laborCategoryId);
             if (globalTask) {
               tasks.push(globalTask);
             } else {
-              // 极限兜底：万一真的被物理删除了，至少显示它原本的名称或编码
               tasks.push({
                 id: item.laborCategoryId,
                 fullName: item.laborCategoryName || item.laborCategoryCode || item.laborCategoryId
@@ -250,7 +278,6 @@ const open = async (date: string, editMode: boolean, detailIds: string[] = []) =
             }
           }
 
-          // 修复：产品系列全量匹配兜底
           if (item.productSeriesId && !productSeriesOptions.value.some(p => p.id === item.productSeriesId)) {
             productSeriesOptions.value.push({
               id: item.productSeriesId,
@@ -305,8 +332,7 @@ const handleWithdraw = (row: any) => {
     try {
       await withdrawLaborDetail(row.id);
       ElMessage.success('撤回成功！您可以直接在表格中修改内容并重新提交。');
-      
-      row.status = 2; // 更新为撤回状态，界面解锁
+      row.status = 2; 
       emit('refresh'); 
     } catch (error) {}
   }).catch(() => {});
@@ -322,7 +348,6 @@ const handleDelete = (row: any, index: number) => {
       if (row.id) {
         await deleteLaborDetail(row.id);
       }
-      
       tableData.value.splice(index, 1);
       ElMessage.success('删除成功！');
       emit('refresh');
@@ -355,7 +380,7 @@ const addRow = async () => {
     laborCategoryCode: '',
     jobresponsibilities: '',
     hours: 0.5, 
-    status: -1, // 新行默认状态为-1
+    status: -1, 
     availableTasks: tasks 
   })
 
@@ -394,11 +419,25 @@ const submitReport = async () => {
     if (!row.jobresponsibilities) return ElMessage.warning(`第 ${i + 1} 行请填写工作内容`)
   }
 
+  if (!currentAttendance.value || currentAttendance.value.isMissingPunch) {
+    return ElMessage.warning('当日缺卡或无考勤记录，不允许报工！')
+  }
+  if (totalReportedHours.value > currentAttendance.value.durationHours) {
+    return ElMessage.warning(`填报总工时 (${totalReportedHours.value}h) 超出当日实际考勤时长 (${currentAttendance.value.durationHours}h) ！`)
+  }
+
   if (systemConfigStore.auditStatus) {
-    const totalHours = tableData.value.reduce((acc, row) => acc + row.hours, 0)
-    if (totalHours > 8) {
+    if (totalReportedHours.value > 8) {
       return ElMessage.warning('当前审核规则限制：单日提交总工时不能超过 8 小时')
     }
+  }
+
+  const targetDate = new Date(currentDate.value);
+  const minDate = new Date('2025-01-01T00:00:00');
+  const maxDate = new Date('2026-07-31T23:59:59');
+  
+  if (targetDate < minDate || targetDate > maxDate) {
+    return ElMessage.warning('历史工时提交范围仅限于 2025年1月1日 - 2026年7月31日');
   }
 
   submitLoading.value = true
@@ -407,6 +446,7 @@ const submitReport = async () => {
       reporterId: userStore.id,
       departmentId: userStore.userInfo?.departmentId,
       reportDate: currentDate.value,
+      isHistory: true, 
       details: tableData.value.map(r => {
         let validProductSeriesId = null;
         if (r.productSeriesId && 
@@ -429,8 +469,7 @@ const submitReport = async () => {
           laborCategoryId: r.laborCategoryId,
           laborCategoryCode: r.laborCategoryCode,
           jobresponsibilities: r.jobresponsibilities,
-          // 修复：强制前端传递状态为 0 (审批中)，确保后端知道这是一次重新提交
-          status: 0 
+          status: 3 
         }
         
         if (systemConfigStore.auditStatus) {
@@ -444,7 +483,7 @@ const submitReport = async () => {
     }
     
     await saveDailyLaborReport(payload) 
-    ElMessage.success('工时提报成功')
+    ElMessage.success('历史工时提报成功，已自动免审批通过！')
     visible.value = false
     emit('refresh') 
   } catch (error) {
