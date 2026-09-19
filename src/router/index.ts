@@ -2,10 +2,34 @@ import { createRouter, createWebHistory } from 'vue-router';
 import Layout from '../layout/Layout.vue'; 
 import { useUserStore } from '../stores/user'; 
 import { checkRequiresPasswordChange } from '../api/user';
-import { ElMessage } from 'element-plus'; // 引入 ElMessage 用于拦截提示
+import { ElMessage } from 'element-plus';
 import { useSystemConfigStore } from '../stores/systemConfig';
 
+// 引入环境判断方法和移动端提示组件 (需确保你已创建该方法并安装了vant)
+import { isWeComOrMobile } from '../utils/env'; 
+import { showToast } from 'vant';
+
 const routes = [
+  // ================= 移动端/企微 专属路由 =================
+  {
+    path: '/mobile/login',
+    name: 'MobileLogin',
+    component: () => import('../views/mobile/loginBind.vue'),
+    meta: { title: '绑定企微' }
+  },
+  {
+    path: '/mobile/laborReport/list',
+    name: 'MobileReportList',
+    component: () => import('../views/mobile/laborReport/list.vue'),
+    meta: { title: '我的报工' }
+  },
+  {
+    path: '/mobile/laborReport/detail',
+    name: 'MobileReportDetail',
+    component: () => import('../views/mobile/laborReport/detail.vue'),
+    meta: { title: '工时填报' }
+  },
+
   {
     path: '/login',
     name: 'Login',
@@ -14,7 +38,7 @@ const routes = [
   {
     path: '/',
     component: Layout,
-    redirect: '/home',
+    redirect: '/home', // PC端真实的首页入口在这里
     children: [
       {
         path: 'home',
@@ -105,7 +129,7 @@ const routes = [
         meta: { 
           title: '人员有效工时表', 
           icon: 'User',
-          isFinance: false // 渲染真实的 Hours
+          isFinance: false 
         }
       },
       {
@@ -115,7 +139,7 @@ const routes = [
         meta: { 
           title: '人员财务工时表', 
           icon: 'Money',
-          isFinance: true // 渲染 Hoursfinance
+          isFinance: true 
         }
       },
       {
@@ -128,14 +152,14 @@ const routes = [
         }
       },
       {
-      path: 'unsubmitted',
-      name: 'unsubmitted',
-      component: () => import('../views/reports/unsubmittedReport.vue'),
-      meta: { 
-        title: '未交工时人员清单', 
-        icon: 'User'
+        path: 'unsubmitted',
+        name: 'unsubmitted',
+        component: () => import('../views/reports/unsubmittedReport.vue'),
+        meta: { 
+          title: '未交工时人员清单', 
+          icon: 'User'
+        }
       }
-    }
     ]
   }
 ];
@@ -145,44 +169,76 @@ const router = createRouter({
   routes
 });
 
-// 全局路由守卫
+// ================= 全局路由守卫 =================
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const isLogin = localStorage.getItem('is_login') === '1'
   const systemConfigStore = useSystemConfigStore()
 
-  // 如果访问的不是登录页，则进行拦截校验
-  if (to.name !== 'Login') {
+  // 1. 获取当前环境并动态设置 登录路由 和 首页路径
+  const isMobileEnv = isWeComOrMobile()
+  const LOGIN_NAME = isMobileEnv ? 'MobileLogin' : 'Login'
+  // 根据你上面的代码，PC端的默认首页重定向是 '/'
+  const HOME_PATH = isMobileEnv ? '/mobile/list' : '/' 
+
+  // 2. 环境隔离拦截：PC不能去移动端页面，移动端不能去PC页面
+  const isToMobileRoute = to.path.startsWith('/mobile')
+  if (isMobileEnv && !isToMobileRoute && to.name !== 'Login') {
+    return next({ path: HOME_PATH, query: to.query })
+  }
+  if (!isMobileEnv && isToMobileRoute && to.name !== 'MobileLogin') {
+    return next({ path: HOME_PATH, query: to.query })
+  }
+
+  // 3. 处理访问登录页的情况
+  if (to.name === 'Login' || to.name === 'MobileLogin') {
     if (isLogin) {
-      if (!userStore.id) { // Vuex/Pinia 状态为空（说明刷新了页面或新开标签页）
-        try {
-          await userStore.fetchApplicationConfiguration()
-          await systemConfigStore.fetchSystemConfig()
-          const requiresChange = await checkRequiresPasswordChange()
-          if (requiresChange) {
-            ElMessage.warning('检测到您的密码为初始密码，必须修改后才能访问系统！')
-            userStore.logout() // 清理掉偷跑的token
-            next({ name: 'Login' }) // 强制踢回登录页去触发弹窗
-            return
-          }
-          
-          next() // 状态正常，正常放行
-        } catch (error) {
-          console.error('登录失效已过期，请重新登录', error)
-          userStore.logout()
-          next({ name: 'Login' })
-        }
-      } else {
-        if (!systemConfigStore.isLoaded) {
-            await systemConfigStore.fetchSystemConfig();
-        } 
-        next() // 状态正常，正常放行
-      }
+      // 已经登录了，踢回首页
+      return next({ path: HOME_PATH })
     } else {
-      next({ name: 'Login' }) // 没登录，跳回登录页
+      // 未登录时，如果环境不对，强行纠正登录页面
+      if ((isMobileEnv && to.name === 'Login') || (!isMobileEnv && to.name === 'MobileLogin')) {
+        return next({ name: LOGIN_NAME, query: to.query })
+      }
+      return next() // 环境正确，放行到登录页
+    }
+  }
+
+  // 4. 未登录拦截：如果是未登录状态，拦截到对应环境的登录页
+  if (!isLogin) {
+    // 【关键】保留 query，为了让企业微信的 ?code=xxx 能够传递到登录页
+    return next({ name: LOGIN_NAME, query: to.query })
+  }
+
+  // 5. 已登录状态的校验 (完全复用你原有的校验逻辑)
+  if (!userStore.id) { // Vuex/Pinia 状态为空（说明刷新了页面或新开标签页）
+    try {
+      await userStore.fetchApplicationConfiguration()
+      await systemConfigStore.fetchSystemConfig()
+      
+      const requiresChange = await checkRequiresPasswordChange()
+      if (requiresChange) {
+        // 根据环境使用不同的弹窗UI
+        if (isMobileEnv) {
+          showToast('必须修改初始密码后才能访问')
+        } else {
+          ElMessage.warning('检测到您的密码为初始密码，必须修改后才能访问系统！')
+        }
+        userStore.logout() // 清理掉偷跑的token
+        return next({ name: LOGIN_NAME }) // 强制踢回对应的登录页
+      }
+      
+      next() // 状态正常，正常放行
+    } catch (error) {
+      console.error('登录失效已过期，请重新登录', error)
+      userStore.logout()
+      return next({ name: LOGIN_NAME })
     }
   } else {
-    next() // 访问的就是 Login 页，直接放行
+    if (!systemConfigStore.isLoaded) {
+      await systemConfigStore.fetchSystemConfig();
+    } 
+    next() // 状态正常，正常放行
   }
 })
 

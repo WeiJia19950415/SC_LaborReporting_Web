@@ -29,14 +29,14 @@
         </div> -->
       </div>
 
-      <div v-show="loginType === 'wecom'" class="wecom-login-wrapper">
+      <!-- <div v-show="loginType === 'wecom'" class="wecom-login-wrapper">
         <div id="wx_reg" v-loading="wecomLoading"></div>
         <div class="login-type-switch">
           <el-button type="primary" link @click="switchLoginType('account')">
             <el-icon style="margin-right: 4px;"><User /></el-icon>返回账号密码登录
           </el-button>
         </div>
-      </div>
+      </div> -->
     </el-card>
 
     <el-dialog
@@ -76,7 +76,6 @@ import { loginApi, getAppConfigApi } from '../api/index';
 import { useUserStore } from '../stores/user'; 
 import { forceChangePassword, checkRequiresPasswordChange } from '../api/user'; 
 import { useSystemConfigStore } from '../stores/systemConfig';
-import { isWeCom } from '../utils/env';
 import { getSystemConfigApi } from '../api/systemConfig';
 
 const router = useRouter();
@@ -105,81 +104,81 @@ const changePwdForm = ref({
   newPassword: ''
 });
 
-onMounted(() => {
-  // 1. 检查 URL 中是否有企业微信回调的 code
-  const code = route.query.code as string;
-  if (code) {
-    handleWeComCodeLogin(code);
-    return;
-  }
+// onMounted(() => {
+//   // 1. 检查 URL 中是否有企业微信回调的 code
+//   const code = route.query.code as string;
+//   if (code) {
+//     handleWeComCodeLogin(code);
+//     return;
+//   }
 
-  // 2. 环境判断，决定初始登录方式
-  if (isWeCom()) {
-    // 企微内置浏览器：直接发起 OAuth2 网页静默授权
-    const oauthUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${corpId}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&state=STATE#wechat_redirect`;
-    window.location.replace(oauthUrl);
-  } else {
-    // PC端浏览器：默认显示账号密码，可切换扫码
-    loginType.value = 'account';
-  }
-});
+//   // 2. 环境判断，决定初始登录方式
+//   if (isWeCom()) {
+//     // 企微内置浏览器：直接发起 OAuth2 网页静默授权
+//     const oauthUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${corpId}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&state=STATE#wechat_redirect`;
+//     window.location.replace(oauthUrl);
+//   } else {
+//     // PC端浏览器：默认显示账号密码，可切换扫码
+//     loginType.value = 'account';
+//   }
+// });
 
-// 切换登录方式
-const switchLoginType = (type: 'account' | 'wecom') => {
-  loginType.value = type;
-  if (type === 'wecom') {
-    initWeComQR();
-  }
-};
+// // 切换登录方式
+// const switchLoginType = (type: 'account' | 'wecom') => {
+//   loginType.value = type;
+//   if (type === 'wecom') {
+//     initWeComQR();
+//   }
+// };
 
-// 初始化PC端企业微信扫码登录
-const initWeComQR = () => {
-  wecomLoading.value = true;
-  // 避免重复加载 JS
-  if (document.getElementById('wwLoginScript')) {
-    renderQrCode();
-    wecomLoading.value = false;
-    return;
-  }
+// // 初始化PC端企业微信扫码登录
+// const initWeComQR = () => {
+//   wecomLoading.value = true;
+//   // 避免重复加载 JS
+//   if (document.getElementById('wwLoginScript')) {
+//     renderQrCode();
+//     wecomLoading.value = false;
+//     return;
+//   }
 
-  const script = document.createElement('script');
-  script.id = 'wwLoginScript';
-  script.src = 'https://rescdn.qqmail.com/node/ww/wwopenmng/js/sso/wwLogin-1.0.0.js';
-  script.onload = () => {
-    renderQrCode();
-    wecomLoading.value = false;
-  };
-  script.onerror = () => {
-    ElMessage.error('企业微信扫码组件加载失败');
-    wecomLoading.value = false;
-  }
-  document.body.appendChild(script);
-};
+//   const script = document.createElement('script');
+//   script.id = 'wwLoginScript';
+//   script.src = 'https://rescdn.qqmail.com/node/ww/wwopenmng/js/sso/wwLogin-1.0.0.js';
+//   script.onload = () => {
+//     renderQrCode();
+//     wecomLoading.value = false;
+//   };
+//   script.onerror = () => {
+//     ElMessage.error('企业微信扫码组件加载失败');
+//     wecomLoading.value = false;
+//   }
+//   document.body.appendChild(script);
+// };
 
-const renderQrCode = async () => {
-  document.getElementById('wx_reg')!.innerHTML = ''; 
+// const renderQrCode = async () => {
+//   document.getElementById('wx_reg')!.innerHTML = ''; 
   
-  try {
-    // 直接 await 请求数据
-    const res: any = await getSystemConfigApi();
-    const corpId = res.weComCorpId; 
-    const agentId = res.weComAgentId;
-    console.log('获取到的配置信息:', res);
+//   try {
+//     // 直接 await 请求数据
+//     const res: any = await getSystemConfigApi();
+//     const corpId = res.weComCorpId; 
+//     const agentId = res.weComAgentId;
+//     console.log('获取到的配置信息:', res);
 
-    // @ts-ignore
-    window.WwLogin({
-      "id": "wx_reg",  
-      "appid": corpId,
-      "agentid": agentId,
-      "redirect_uri": redirectUri,
-      "state": "STATE",
-      "href": "", 
-    });
-  } catch (error) {
-    console.error('获取系统配置失败:', error);
-    ElMessage.error('获取扫码登录配置失败');
-  }
-};
+//     // @ts-ignore
+//     window.WwLogin({
+//       "id": "wx_reg",  
+//       "appid": corpId,
+//       "agentid": agentId,
+//       "redirect_uri": redirectUri,
+//       "state": "STATE",
+//       "href": "", 
+//     });
+//   } catch (error) {
+//     console.error('获取系统配置失败:', error);
+//     ElMessage.error('获取扫码登录配置失败');
+//   }
+// };
 
 // 提取公共逻辑：登录成功后的通用处理（拉配置 + 检查改密）
 const processLoginSuccess = async (token: string, currentPwd = '') => {
@@ -252,26 +251,26 @@ const handleLogin = async () => {
   }
 };
 
-// 企业微信 Code 登录
-const handleWeComCodeLogin = async (code: string) => {
-  loading.value = true;
-  try {
-    // 调用我们在 user.ts store 中新增的方法
-    const token = await userStore.loginByWeComCode(code);
-    if (token) {
-      // 企微登录由于没有输入原密码，传空字符串
-      await processLoginSuccess(token, '');
-    }
-  } catch (error: any) {
-    console.error('企微授权登录失败:', error);
-    ElMessage.error('企业微信快捷登录失败，请使用账号密码登录');
-    // 如果失败，清除URL上的code参数，防止死循环刷新
-    router.replace({ path: '/login' }); 
-    loginType.value = 'account';
-  } finally {
-    loading.value = false;
-  }
-};
+// // 企业微信 Code 登录
+// const handleWeComCodeLogin = async (code: string) => {
+//   loading.value = true;
+//   try {
+//     // 调用我们在 user.ts store 中新增的方法
+//     const token = await userStore.loginByWeComCode(code);
+//     if (token) {
+//       // 企微登录由于没有输入原密码，传空字符串
+//       await processLoginSuccess(token, '');
+//     }
+//   } catch (error: any) {
+//     console.error('企微授权登录失败:', error);
+//     ElMessage.error('企业微信快捷登录失败，请使用账号密码登录');
+//     // 如果失败，清除URL上的code参数，防止死循环刷新
+//     router.replace({ path: '/login' }); 
+//     loginType.value = 'account';
+//   } finally {
+//     loading.value = false;
+//   }
+// };
 
 // 提交密码修改
 const submitChangePwd = async () => {

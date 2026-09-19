@@ -1,8 +1,11 @@
 import { createApp } from 'vue'
+import Vant from 'vant';
 import './style.css'
+import 'vant/lib/index.css';
 import App from './App.vue'
 import router from './router'
 import { createPinia } from 'pinia'
+
 
 // 1. 引入 Element Plus 及其样式
 import ElementPlus from 'element-plus'
@@ -19,5 +22,5 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 app.use(createPinia())
 app.use(router)
 app.use(ElementPlus) // 3. 挂载 Element Plus
-
+app.use(Vant);
 app.mount('#app')
